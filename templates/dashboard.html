@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Gastos en Pareja{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+<div class="mes-selector">
+  {% set mes_prev = mes - 1 if mes > 1 else 12 %}
+  {% set anio_prev = anio if mes > 1 else anio - 1 %}
+  {% set mes_next = mes + 1 if mes < 12 else 1 %}
+  {% set anio_next = anio if mes < 12 else anio + 1 %}
+  <a href="{{ url_for('dashboard', mes=mes_prev, anio=anio_prev) }}"><i class="bi bi-chevron-left"></i></a>
+  <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
+  <a href="{{ url_for('dashboard', mes=mes_next, anio=anio_next) }}"><i class="bi bi-chevron-right"></i></a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="stat-label">Ingresos</div>
+          <div class="stat-value text-success">{{ "%.2f"|format(total_ingresos) }} €</div>
+        </div>
+        <div class="stat-icon" style="background:#d1fae5;color:#065f46"><i class="bi bi-arrow-up-circle"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="stat-label">Gastos</div>
+          <div class="stat-value text-danger">{{ "%.2f"|format(total_gastos) }} €</div>
+        </div>
+        <div class="stat-icon" style="background:#fee2e2;color:#991b1b"><i class="bi bi-arrow-down-circle"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="stat-label">Balance</div>
+          <div class="stat-value {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {{ "%.2f"|format(balance) }} €
+          </div>
+        </div>
+        <div class="stat-icon" style="background:{% if balance>=0 %}#d1fae5;color:#065f46{% else %}#fee2e2;color:#991b1b{% endif %}">
+          <i class="bi bi-{% if balance >= 0 %}trending-up{% else %}trending-down{% endif %}"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="stat-label">Gastos Fijos</div>
+          <div class="stat-value" style="color:#856404">{{ "%.2f"|format(gastos_fijos_total) }} €</div>
+        </div>
+        <div class="stat-icon" style="background:#fff3cd;color:#856404"><i class="bi bi-repeat"></i></div>
+      </div>
+      {% if total_gastos > 0 %}
+      <div class="progress mt-2" style="height:4px">
+        <div class="progress-bar" style="width:{{ (gastos_fijos_total/total_gastos*100)|round }}%;background:#ffc107"></div>
+      </div>
+      <small class="text-muted" style="font-size:.72rem">{{ (gastos_fijos_total/total_gastos*100)|round(1) }}% del total</small>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- FILA CENTRAL -->
+<div class="row g-3 mb-4">
+  <!-- Evolucion -->
+  <div class="col-12 col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-bar-chart text-primary"></i> Evolucion 6 meses
+      </div>
+      <div class="card-body">
+        <canvas id="chartEvolucion" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gastos por categoria -->
+  <div class="col-12 col-lg-5">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-pie-chart text-primary"></i> Gastos por categoria
+      </div>
+      <div class="card-body">
+        {% if gastos_categoria %}
+        <canvas id="chartCats" height="180"></canvas>
+        {% else %}
+        <div class="text-center text-muted py-4"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Sin gastos este mes</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FILA INFERIOR -->
+<div class="row g-3">
+  <!-- Ultimos gastos -->
+  <div class="col-12 col-lg-5">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history text-primary me-1"></i> Ultimos gastos</span>
+        <a href="{{ url_for('gastos', mes=mes, anio=anio) }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+      </div>
+      <div class="card-body p-0">
+        {% if ultimos_gastos %}
+        <ul class="list-group list-group-flush">
+          {% for g in ultimos_gastos %}
+          <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+            <div class="d-flex align-items-center gap-2">
+              {% if g.cicono %}<i class="{{ g.cicono }}" style="color:{{ g.ccolor }}"></i>{% endif %}
+              <div>
+                <div class="fw-600" style="font-size:.88rem">{{ g.descripcion }}</div>
+                <div style="font-size:.75rem;color:{{ g.ucolor }}">
+                  <i class="bi bi-{{ g.uemoji }}"></i> {{ g.unombre }}
+                  {% if g.es_fijo %} · <span class="badge-fijo">Fijo</span>{% endif %}
+                </div>
+              </div>
+            </div>
+            <span class="fw-bold text-danger">-{{ "%.2f"|format(g.importe) }} €</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="text-center text-muted py-4">Sin gastos este mes</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Reparto por usuario + Metas -->
+  <div class="col-12 col-lg-7">
+    <div class="row g-3">
+      <!-- Reparto gastos -->
+      <div class="col-12 col-sm-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-people text-primary me-1"></i> Gastos por persona</div>
+          <div class="card-body">
+            {% for u in gastos_usuario %}
+            <div class="mb-2">
+              <div class="d-flex justify-content-between mb-1">
+                <span style="font-size:.85rem;color:{{ u.color }};font-weight:600">
+                  <i class="bi bi-{{ u.emoji }} me-1"></i>{{ u.nombre }}
+                </span>
+                <span style="font-size:.85rem;font-weight:700">{{ "%.2f"|format(u.total) }} €</span>
+              </div>
+              {% if total_gastos > 0 %}
+              <div class="progress" style="height:6px">
+                <div class="progress-bar" style="width:{{ (u.total/total_gastos*100)|round }}%;background:{{ u.color }}"></div>
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <!-- Reparto ingresos -->
+      <div class="col-12 col-sm-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-wallet2 text-success me-1"></i> Ingresos por persona</div>
+          <div class="card-body">
+            {% for u in ingresos_usuario %}
+            <div class="mb-2">
+              <div class="d-flex justify-content-between mb-1">
+                <span style="font-size:.85rem;color:{{ u.color }};font-weight:600">
+                  <i class="bi bi-{{ u.emoji }} me-1"></i>{{ u.nombre }}
+                </span>
+                <span style="font-size:.85rem;font-weight:700">{{ "%.2f"|format(u.total) }} €</span>
+              </div>
+              {% if total_ingresos > 0 %}
+              <div class="progress" style="height:6px">
+                <div class="progress-bar bg-success" style="width:{{ (u.total/total_ingresos*100)|round }}%;background:{{ u.color }} !important"></div>
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <!-- Metas -->
+      {% if metas %}
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-bullseye text-primary me-1"></i> Metas activas</span>
+            <a href="{{ url_for('metas') }}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+          </div>
+          <div class="card-body">
+            {% for m in metas %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="fw-600" style="font-size:.88rem">{{ m.nombre }}</span>
+                <span style="font-size:.82rem;color:#6c757d">{{ "%.2f"|format(m.importe_actual) }} / {{ "%.2f"|format(m.importe_objetivo) }} €</span>
+              </div>
+              <div class="progress" style="height:8px">
+                <div class="progress-bar" style="width:{{ [m.progreso or 0, 100]|min }}%;background:{{ m.color }}"></div>
+              </div>
+              <small class="text-muted">{{ m.progreso or 0 }}%{% if m.fecha_limite %} · Hasta {{ m.fecha_limite }}{% endif %}</small>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const evolucion = {{ evolucion | tojson }};
+const labels = evolucion.map(e => e.label);
+const dataGastos = evolucion.map(e => e.gastos);
+const dataIngresos = evolucion.map(e => e.ingresos);
+
+new Chart(document.getElementById('chartEvolucion'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Ingresos', data: dataIngresos, backgroundColor: 'rgba(40,167,69,.7)', borderRadius: 6 },
+      { label: 'Gastos', data: dataGastos, backgroundColor: 'rgba(220,53,69,.7)', borderRadius: 6 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: { y: { beginAtZero: true, ticks: { callback: v => v + ' €' } } }
+  }
+});
+
+{% if gastos_categoria %}
+const cats = {{ gastos_categoria | tojson }};
+new Chart(document.getElementById('chartCats'), {
+  type: 'doughnut',
+  data: {
+    labels: cats.map(c => c.nombre),
+    datasets: [{ data: cats.map(c => c.total), backgroundColor: cats.map(c => c.color), borderWidth: 2, borderColor: '#fff' }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'right', labels: { font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.toFixed(2) + ' €' } }
+    },
+    cutout: '60%'
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

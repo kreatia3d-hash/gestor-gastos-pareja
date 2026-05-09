@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Metas de Ahorro{% endblock %}
+{% block page_title %}Metas de Ahorro{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('meta_nueva') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg me-1"></i> Nueva meta
+</a>
+{% endblock %}
+
+{% block content %}
+{% set metas_activas = metas | selectattr('completada', 'equalto', 0) | list %}
+{% set metas_completadas = metas | selectattr('completada', 'equalto', 1) | list %}
+
+<!-- Resumen -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Metas activas</div>
+      <div class="stat-value text-primary">{{ metas_activas|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Completadas</div>
+      <div class="stat-value text-success">{{ metas_completadas|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Total objetivo</div>
+      <div class="stat-value">{{ "%.2f"|format(metas_activas | sum(attribute='importe_objetivo')) }} €</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Total ahorrado</div>
+      <div class="stat-value text-success">{{ "%.2f"|format(metas_activas | sum(attribute='importe_actual')) }} €</div>
+    </div>
+  </div>
+</div>
+
+<!-- Metas activas -->
+{% if metas_activas %}
+<h6 class="text-muted text-uppercase fw-bold mb-2" style="font-size:.75rem;letter-spacing:.5px">Metas activas</h6>
+<div class="row g-3 mb-4">
+  {% for m in metas_activas %}
+  <div class="col-12 col-md-6">
+    <div class="card meta-card" style="border-left-color:{{ m.color }}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="mb-0 fw-700">{{ m.nombre }}</h6>
+            {% if m.descripcion %}<small class="text-muted">{{ m.descripcion }}</small>{% endif %}
+          </div>
+          <div class="d-flex gap-1">
+            <a href="{{ url_for('meta_abonar', mid=m.id) }}" class="btn btn-sm btn-primary py-0 px-2" title="Aportar">
+              <i class="bi bi-plus-lg"></i>
+            </a>
+            <a href="{{ url_for('meta_editar', mid=m.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+              onclick="confirmarEliminar('{{ url_for('meta_eliminar', mid=m.id) }}', 'Eliminar la meta: {{ m.nombre }}?')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between mb-1">
+          <span style="font-size:.85rem;font-weight:600;color:{{ m.color }}">
+            {{ "%.2f"|format(m.importe_actual) }} € ahorrados
+          </span>
+          <span style="font-size:.82rem;color:#6c757d">
+            Objetivo: {{ "%.2f"|format(m.importe_objetivo) }} €
+          </span>
+        </div>
+
+        <div class="progress mb-1" style="height:10px">
+          <div class="progress-bar" style="width:{{ [m.progreso or 0, 100]|min }}%;background:{{ m.color }};transition:width .6s"></div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <small class="text-muted">{{ m.progreso or 0 }}% completado</small>
+          {% if m.fecha_limite %}
+          <small class="text-muted"><i class="bi bi-calendar3 me-1"></i>{{ m.fecha_limite }}</small>
+          {% endif %}
+        </div>
+
+        {% set restante = m.importe_objetivo - m.importe_actual %}
+        {% if restante > 0 %}
+        <div class="mt-2 pt-2 border-top">
+          <small style="color:{{ m.color }};font-weight:600">Faltan {{ "%.2f"|format(restante) }} €</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card mb-4">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-bullseye fs-1 text-muted d-block mb-2"></i>
+    <p class="text-muted mb-3">No tienes metas de ahorro activas</p>
+    <a href="{{ url_for('meta_nueva') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i> Crear primera meta
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Ahorro General (sin meta asignada) -->
+{% if ahorro_general %}
+<h6 class="text-muted text-uppercase fw-bold mb-2" style="font-size:.75rem;letter-spacing:.5px">Ahorro general (sin meta)</h6>
+<div class="card mb-4" style="border-left:4px solid #6c757d">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h6 class="mb-0 fw-700"><i class="bi bi-piggy-bank me-2 text-secondary"></i>Ahorro General</h6>
+        <small class="text-muted">Ahorros registrados sin asignar a ninguna meta</small>
+      </div>
+      <span class="fw-bold text-success fs-5">{{ "%.2f"|format(ahorro_general_total) }} €</span>
+    </div>
+    <div class="table-responsive d-none d-md-block">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th>Mes</th><th>Usuario</th><th>Notas</th><th class="text-end">Importe</th></tr>
+        </thead>
+        <tbody>
+          {% for a in ahorro_general %}
+          <tr>
+            <td style="font-size:.83rem">{{ a.fecha[:7] }}</td>
+            <td>
+              {% if a.unombre %}
+              <span class="user-chip" style="color:{{ a.ucolor }};border-color:{{ a.ucolor }}40;background:{{ a.ucolor }}10">{{ a.unombre }}</span>
+              {% else %}<span class="text-muted" style="font-size:.8rem">Compartido</span>{% endif %}
+            </td>
+            <td style="font-size:.83rem;color:#6c757d">{{ a.notas or '—' }}</td>
+            <td class="text-end fw-bold text-success">+{{ "%.2f"|format(a.importe) }} €</td>
+            <td class="text-end">
+              <div class="d-flex gap-1 justify-content-end">
+                <a href="{{ url_for('gasto_editar', gid=a.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                  <i class="bi bi-pencil" style="font-size:.8rem"></i>
+                </a>
+                <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                  onclick="confirmarEliminar('{{ url_for('gasto_eliminar', gid=a.id) }}', 'Eliminar este ahorro de {{ "%.2f"|format(a.importe) }} €?')">
+                  <i class="bi bi-trash" style="font-size:.8rem"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <!-- Mobile -->
+    <div class="d-md-none">
+      {% for a in ahorro_general %}
+      <div class="gasto-card-mobile">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            {% if a.unombre %}<div style="color:{{ a.ucolor }};font-weight:600;font-size:.88rem">{{ a.unombre }}</div>{% endif %}
+            <div style="font-size:.75rem;color:#adb5bd">{{ a.fecha[:7] }}{% if a.notas %} · {{ a.notas }}{% endif %}</div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold text-success">+{{ "%.2f"|format(a.importe) }} €</span>
+            <a href="{{ url_for('gasto_editar', gid=a.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+              <i class="bi bi-pencil" style="font-size:.8rem"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+              onclick="confirmarEliminar('{{ url_for('gasto_eliminar', gid=a.id) }}', 'Eliminar ahorro de {{ "%.2f"|format(a.importe) }} €?')">
+              <i class="bi bi-trash" style="font-size:.8rem"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Metas completadas -->
+{% if metas_completadas %}
+<h6 class="text-muted text-uppercase fw-bold mb-2" style="font-size:.75rem;letter-spacing:.5px">Completadas</h6>
+<div class="row g-3">
+  {% for m in metas_completadas %}
+  <div class="col-12 col-md-6">
+    <div class="card" style="opacity:.75;border-left:4px solid #28a745">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <span class="fw-600">{{ m.nombre }}</span>
+            <span class="badge bg-success ms-2" style="font-size:.72rem">Completada</span>
+          </div>
+          <div class="d-flex gap-1 align-items-center">
+            <span class="fw-bold text-success">{{ "%.2f"|format(m.importe_objetivo) }} €</span>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2 ms-1"
+              onclick="confirmarEliminar('{{ url_for('meta_eliminar', mid=m.id) }}', 'Eliminar meta: {{ m.nombre }}?')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

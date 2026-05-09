@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Configuracion{% endblock %}
+{% block page_title %}Configuracion{% endblock %}
+
+{% block content %}
+
+<!-- Banner URL publica -->
+<div id="tunnelBanner" class="mb-4" style="display:none">
+  <div class="alert alert-success d-flex align-items-center gap-2 mb-0">
+    <i class="bi bi-globe2 fs-5 flex-shrink-0"></i>
+    <div style="min-width:0">
+      <strong>Acceso remoto activo</strong>
+      <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
+        <a id="tunnelLink" href="#" target="_blank" class="fw-bold text-success" style="word-break:break-all"></a>
+        <button class="btn btn-sm btn-success py-0 px-2" onclick="copiarURL()" title="Copiar URL">
+          <i class="bi bi-clipboard"></i>
+        </button>
+      </div>
+      <small class="text-muted" style="font-size:.77rem">Comparte esta URL para acceder desde cualquier lugar. Cambia cada vez que reinicias la app.</small>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Usuarios -->
+  <div class="col-12 col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-people text-primary me-1"></i> Usuarios</div>
+      <div class="card-body">
+        {% for u in usuarios %}
+        <div class="p-3 rounded mb-4" style="background:#f8f9fe;border:1.5px solid {{ u.color }}40">
+          <!-- Avatar + foto de perfil -->
+          <div class="d-flex align-items-center gap-3 mb-3">
+            {% if u.foto %}
+            <img src="{{ url_for('static', filename=u.foto) }}" alt="{{ u.nombre }}"
+              style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid {{ u.color }}">
+            {% else %}
+            <div style="width:56px;height:56px;border-radius:50%;background:{{ u.color }}22;color:{{ u.color }};display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">
+              <i class="bi bi-{{ u.emoji }}"></i>
+            </div>
+            {% endif %}
+            <div>
+              <span style="color:{{ u.color }};font-weight:700;font-size:1rem">{{ u.nombre }}</span>
+              {% if u.id == usuario_actual.id %}
+              <form method="POST" action="{{ url_for('usuario_foto', uid=u.id) }}" enctype="multipart/form-data" class="mt-1">
+                <label class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.77rem;cursor:pointer">
+                  <i class="bi bi-camera me-1"></i>Cambiar foto
+                  <input type="file" name="foto" accept="image/*" style="display:none" onchange="this.form.submit()">
+                </label>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if u.id == usuario_actual.id %}
+          <!-- Editar datos: solo el usuario activo puede editar su propio perfil -->
+          <form method="POST" class="mb-3">
+            <input type="hidden" name="accion" value="editar_usuario">
+            <input type="hidden" name="uid" value="{{ u.id }}">
+            <div class="row g-2 mb-2">
+              <div class="col-7">
+                <input type="text" class="form-control form-control-sm" name="nombre" value="{{ u.nombre }}" required placeholder="Nombre">
+              </div>
+              <div class="col-3">
+                <input type="color" class="form-control form-control-color form-control-sm w-100" name="color" value="{{ u.color }}">
+              </div>
+              <div class="col-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100" title="Guardar">
+                  <i class="bi bi-check-lg"></i>
+                </button>
+              </div>
+            </div>
+            <label class="form-label mb-1" style="font-size:.8rem">Icono</label>
+            <div class="icon-picker" id="iconPicker_u{{ u.id }}">
+              {% set iconos_u = ['person','person-fill','person-circle','person-badge-fill','emoji-smile','emoji-heart-eyes','emoji-sunglasses','gender-female','gender-male','star','heart','robot','house-heart','flower1'] %}
+              {% for ico in iconos_u %}
+              <button type="button" class="icon-option {% if u.emoji == ico %}selected{% endif %}"
+                data-value="{{ ico }}"
+                onclick="selectIcon(this, 'emoji_{{ u.id }}', 'iconPicker_u{{ u.id }}')"
+                title="{{ ico }}">
+                <i class="bi bi-{{ ico }}"></i>
+              </button>
+              {% endfor %}
+            </div>
+            <input type="hidden" name="emoji" id="emoji_{{ u.id }}" value="{{ u.emoji }}">
+          </form>
+
+          <!-- PIN: solo el usuario activo gestiona el suyo -->
+          <div class="pt-2 border-top">
+            <p class="fw-600 mb-2" style="font-size:.85rem">
+              <i class="bi bi-lock me-1 text-secondary"></i>Mi PIN de acceso
+              {% if u.pin %}<span class="badge bg-success ms-1" style="font-size:.65rem">Activo</span>{% endif %}
+            </p>
+            <form method="POST" class="d-flex gap-2 align-items-center mb-1">
+              <input type="hidden" name="accion" value="set_pin">
+              <input type="hidden" name="uid" value="{{ u.id }}">
+              <input type="tel" maxlength="4" pattern="[0-9]{4}" class="form-control form-control-sm"
+                name="pin" placeholder="4 dígitos nuevos" style="max-width:140px" inputmode="numeric">
+              <button type="submit" class="btn btn-sm btn-outline-primary">
+                {% if u.pin %}Cambiar{% else %}Crear PIN{% endif %}
+              </button>
+            </form>
+            {% if u.pin %}
+            <form method="POST" onsubmit="return confirm('¿Eliminar tu PIN de acceso? Cualquiera podrá entrar sin contraseña.')">
+              <input type="hidden" name="accion" value="set_pin">
+              <input type="hidden" name="uid" value="{{ u.id }}">
+              <input type="hidden" name="pin" value="">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-lock-open me-1"></i>Eliminar PIN
+              </button>
+            </form>
+            {% endif %}
+          </div>
+          {% else %}
+          <!-- Vista de solo lectura del otro usuario -->
+          <div class="py-1 text-muted" style="font-size:.85rem">
+            <i class="bi bi-shield-lock me-1"></i>
+            Solo <strong style="color:{{ u.color }}">{{ u.nombre }}</strong> puede editar su propio perfil y PIN.
+            {% if u.pin %}<span class="badge bg-success ms-2" style="font-size:.65rem">PIN activo</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Categorias de gasto -->
+  <div class="col-12 col-lg-6">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-tags text-primary me-1"></i> Categorias de gasto</span>
+        <small class="text-muted">{{ categorias|length }} categorias</small>
+      </div>
+      <div class="card-body">
+        <!-- Lista -->
+        <div class="mb-3">
+          {% for c in categorias %}
+          <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+            <div class="d-flex align-items-center gap-2">
+              <span style="width:10px;height:10px;border-radius:50%;background:{{ c.color }};display:inline-block;flex-shrink:0"></span>
+              <i class="{{ c.icono }}" style="color:{{ c.color }};font-size:1rem"></i>
+              <span style="font-size:.88rem;font-weight:600">{{ c.nombre }}</span>
+              {% if c.es_ahorro %}<span class="badge" style="background:#0d6efd22;color:#0d6efd;border:1px solid #0d6efd44;font-size:.65rem">Ahorro</span>{% endif %}
+            </div>
+            {% if not c.es_ahorro %}
+            <form method="POST" class="d-inline">
+              <input type="hidden" name="accion" value="eliminar_categoria">
+              <input type="hidden" name="cid" value="{{ c.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"
+                onclick="return confirm('Eliminar categoria {{ c.nombre }}?')">
+                <i class="bi bi-trash" style="font-size:.8rem"></i>
+              </button>
+            </form>
+            {% else %}
+            <span class="text-muted" style="font-size:.75rem"><i class="bi bi-lock"></i></span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Nueva categoria -->
+        <div class="p-3 rounded" style="background:#f8f9fe;border:1.5px dashed #d1d5db">
+          <p class="fw-600 mb-2" style="font-size:.88rem"><i class="bi bi-plus-circle me-1 text-primary"></i> Nueva categoria</p>
+          <form method="POST">
+            <input type="hidden" name="accion" value="nueva_categoria">
+            <div class="row g-2 mb-2">
+              <div class="col-8">
+                <input type="text" class="form-control form-control-sm" name="nombre" placeholder="Nombre" required>
+              </div>
+              <div class="col-4">
+                <input type="color" class="form-control form-control-color form-control-sm w-100" name="color" value="#4f8ef7">
+              </div>
+            </div>
+            <!-- Icon picker categoria -->
+            <label class="form-label mb-1" style="font-size:.8rem">Icono</label>
+            <div class="icon-picker mb-2" id="iconPicker_cat">
+              {% set iconos_cat = ['bi-tag','bi-basket2','bi-controller','bi-car-front','bi-house','bi-heart-pulse','bi-bag','bi-airplane','bi-phone','bi-cup-hot','bi-book','bi-gift','bi-tools','bi-piggy-bank','bi-three-dots','bi-lightning','bi-music-note','bi-film','bi-bicycle','bi-shop','bi-credit-card','bi-bank','bi-building','bi-scissors','bi-wifi','bi-tv','bi-star','bi-droplet','bi-sun','bi-flower1','bi-truck','bi-bicycle','bi-train-front'] %}
+              {% for ico in iconos_cat %}
+              <button type="button" class="icon-option {% if loop.first %}selected{% endif %}"
+                data-value="{{ ico }}"
+                onclick="selectIcon(this, 'icono_cat', 'iconPicker_cat')"
+                title="{{ ico }}">
+                <i class="{{ ico }}"></i>
+              </button>
+              {% endfor %}
+            </div>
+            <input type="hidden" name="icono" id="icono_cat" value="bi-tag">
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+              <i class="bi bi-plus-lg me-1"></i> Agregar categoria
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Acceso desde cualquier lugar -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-globe2 text-primary me-1"></i> Acceso remoto (desde cualquier lugar)</div>
+      <div class="card-body">
+        <div class="row g-4">
+          <!-- Red local -->
+          <div class="col-12 col-md-5">
+            <p class="fw-600 mb-1" style="font-size:.88rem"><i class="bi bi-wifi me-1 text-primary"></i> Misma red WiFi</p>
+            <div class="p-2 rounded mb-1" style="background:#1a1f2e;color:#4f8ef7;font-family:monospace;font-size:.92rem">
+              http://{{ local_ip }}:5001
+            </div>
+            <small class="text-muted" style="font-size:.77rem">Abre esta direccion en el movil conectado a la misma WiFi.</small>
+          </div>
+          <!-- Tunel automatico -->
+          <div class="col-12 col-md-7">
+            <p class="fw-600 mb-1" style="font-size:.88rem"><i class="bi bi-cloud-arrow-up me-1 text-success"></i> Internet (cualquier lugar)</p>
+            <p style="font-size:.82rem;color:#6c757d">
+              El tunel se crea <strong>automaticamente</strong> al iniciar la app. No necesitas ninguna cuenta ni configuracion.
+            </p>
+            <!-- Estado del tunel -->
+            <div id="tunnelStatus">
+              <div id="tsDownloading" class="d-none p-3 rounded" style="background:#fff8e1">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+                  <span style="font-size:.85rem;color:#856404"><strong>Descargando componente...</strong> Solo la primera vez (~25 MB)</span>
+                </div>
+              </div>
+              <div id="tsConnecting" class="d-none p-3 rounded" style="background:#e8f4fd">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                  <span style="font-size:.85rem;color:#0d6efd"><strong>Conectando tunel...</strong></span>
+                </div>
+              </div>
+              <div id="tsReady" class="d-none p-3 rounded" style="background:#d1fae5">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <i class="bi bi-check-circle-fill text-success"></i>
+                  <strong style="font-size:.85rem;color:#065f46">Tunel activo — escanea el QR con el movil</strong>
+                </div>
+                <div class="d-flex align-items-start gap-3 flex-wrap">
+                  <div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                      <a id="tsLink" href="#" target="_blank" class="fw-bold text-success" style="word-break:break-all;font-size:.88rem"></a>
+                      <button class="btn btn-sm btn-success py-0 px-2" onclick="copiarURL()" title="Copiar URL">
+                        <i class="bi bi-clipboard"></i>
+                      </button>
+                    </div>
+                    <small class="text-muted" style="font-size:.77rem">Copia esta URL en la app del movil o escanea el QR</small>
+                  </div>
+                  <div id="qrContainer" style="background:#fff;padding:6px;border-radius:8px;display:inline-block"></div>
+                </div>
+              </div>
+              <div id="tsError" class="d-none p-3 rounded" style="background:#fde8e8">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                  <span style="font-size:.85rem;color:#b91c1c"><strong>Error al crear el tunel.</strong> Reintentando automaticamente en 30 s...</span>
+                </div>
+              </div>
+              <div id="tsOff" class="p-3 rounded" style="background:#f3f4f6">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                  <span style="font-size:.85rem;color:#6c757d">Iniciando...</span>
+                </div>
+              </div>
+            </div>
+            <small class="text-muted d-block mt-2" style="font-size:.77rem">
+              <i class="bi bi-info-circle me-1"></i>La URL cambia cada vez que reinicias la app.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+function selectIcon(btn, fieldId, pickerId) {
+  document.querySelectorAll('#' + pickerId + ' .icon-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById(fieldId).value = btn.dataset.value;
+}
+
+// Polling del tunel
+let tunnelActivo = false;
+function mostrarEstado(status, url) {
+  ['tsOff','tsDownloading','tsConnecting','tsReady','tsError'].forEach(id => {
+    document.getElementById(id).classList.add('d-none');
+  });
+  if (status === 'downloading') document.getElementById('tsDownloading').classList.remove('d-none');
+  else if (status === 'connecting') document.getElementById('tsConnecting').classList.remove('d-none');
+  else if (status === 'ready' && url) {
+    const el = document.getElementById('tsReady');
+    el.classList.remove('d-none');
+    const link = document.getElementById('tsLink');
+    link.href = url;
+    link.textContent = url;
+    // QR code
+    const qrEl = document.getElementById('qrContainer');
+    if (qrEl) { qrEl.innerHTML = ''; QRCode.toCanvas(url, {width:120,margin:1}, (err,c) => { if(!err) qrEl.appendChild(c); }); }
+    // Banner superior
+    document.getElementById('tunnelBanner').style.display = '';
+    const bl = document.getElementById('tunnelLink');
+    bl.href = url;
+    bl.textContent = url;
+    tunnelActivo = true;
+  } else if (status === 'error') document.getElementById('tsError').classList.remove('d-none');
+  else document.getElementById('tsOff').classList.remove('d-none');
+}
+
+function copiarURL() {
+  const url = document.getElementById('tunnelLink').href || document.getElementById('tsLink').href;
+  if (!url || url === '#') return;
+  navigator.clipboard.writeText(url).then(() => {
+    const btns = document.querySelectorAll('[onclick="copiarURL()"]');
+    btns.forEach(b => { b.innerHTML = '<i class="bi bi-check-lg"></i>'; setTimeout(() => b.innerHTML = '<i class="bi bi-clipboard"></i>', 1500); });
+  });
+}
+
+function pollTunel() {
+  fetch('/api/tunnel').then(r => r.json()).then(data => {
+    mostrarEstado(data.status, data.url);
+    // Seguir sondeando siempre: detecta reconexiones y cambios de URL
+    const delay = (data.status === 'ready') ? 10000 : 3000;
+    setTimeout(pollTunel, delay);
+  }).catch(() => setTimeout(pollTunel, 5000));
+}
+pollTunel();
+</script>
+{% endblock %}

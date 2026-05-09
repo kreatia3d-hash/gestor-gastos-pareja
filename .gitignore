@@ -1,0 +1,21 @@
+# Base de datos local
+gastos.db
+
+# Fotos de perfil subidas
+static/fotos/
+
+# Cloudflare tunnel (solo PC local)
+cloudflared.exe
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# APK build artifacts (no necesarios en la nube)
+gestor_gastos_apk/
+
+# VS Code / sistema
+.vscode/
+Thumbs.db

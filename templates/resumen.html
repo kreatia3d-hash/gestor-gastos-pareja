@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Resumen Anual {{ anio }}{% endblock %}
+{% block page_title %}Resumen Anual {{ anio }}{% endblock %}
+
+{% block topbar_actions %}
+<div class="mes-selector">
+  <a href="{{ url_for('resumen', anio=anio-1) }}"><i class="bi bi-chevron-left"></i></a>
+  <span class="mes-actual">{{ anio }}</span>
+  <a href="{{ url_for('resumen', anio=anio+1) }}"><i class="bi bi-chevron-right"></i></a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- KPIs anuales -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4">
+    <div class="stat-card">
+      <div class="stat-label">Ingresos {{ anio }}</div>
+      <div class="stat-value text-success">{{ "%.2f"|format(total_ingresos_anio) }} €</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="stat-card">
+      <div class="stat-label">Gastos {{ anio }}</div>
+      <div class="stat-value text-danger">{{ "%.2f"|format(total_gastos_anio) }} €</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="stat-card">
+      <div class="stat-label">Balance anual</div>
+      <div class="stat-value {% if balance_anio >= 0 %}text-success{% else %}text-danger{% endif %}">
+        {{ "%.2f"|format(balance_anio) }} €
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Tabla mensual -->
+  <div class="col-12 col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-table text-primary me-1"></i> Detalle mensual</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Mes</th>
+              <th class="text-end text-success">Ingresos</th>
+              <th class="text-end text-danger">Gastos</th>
+              <th class="text-end">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in meses_data %}
+            <tr>
+              <td>
+                <a href="{{ url_for('dashboard', mes=m.mes_num, anio=anio) }}" class="text-decoration-none fw-500">
+                  {{ m.mes }}
+                </a>
+              </td>
+              <td class="text-end text-success">+{{ "%.2f"|format(m.ingresos) }} €</td>
+              <td class="text-end text-danger">-{{ "%.2f"|format(m.gastos) }} €</td>
+              <td class="text-end fw-bold {% if m.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ "%.2f"|format(m.balance) }} €
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light fw-bold">
+            <tr>
+              <td>Total</td>
+              <td class="text-end text-success">+{{ "%.2f"|format(total_ingresos_anio) }} €</td>
+              <td class="text-end text-danger">-{{ "%.2f"|format(total_gastos_anio) }} €</td>
+              <td class="text-end {% if balance_anio >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ "%.2f"|format(balance_anio) }} €
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grafico anual + categorias -->
+  <div class="col-12 col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-bar-chart text-primary me-1"></i> Evolucion anual</div>
+      <div class="card-body">
+        <canvas id="chartAnual" height="220"></canvas>
+      </div>
+    </div>
+
+    {% if gastos_cat %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-tags text-primary me-1"></i> Gastos por categoria</div>
+      <div class="card-body p-0">
+        {% for c in gastos_cat %}
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+          <span style="font-size:.85rem;font-weight:600">
+            <span class="me-2" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ c.color }}"></span>
+            {{ c.nombre }}
+          </span>
+          <span class="fw-bold" style="font-size:.9rem">{{ "%.2f"|format(c.total) }} €</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const meses = {{ meses_data | tojson }};
+new Chart(document.getElementById('chartAnual'), {
+  type: 'line',
+  data: {
+    labels: meses.map(m => m.mes.substr(0,3)),
+    datasets: [
+      {
+        label: 'Ingresos', data: meses.map(m => m.ingresos),
+        borderColor: '#28a745', backgroundColor: 'rgba(40,167,69,.1)',
+        tension: .3, fill: true, pointRadius: 4
+      },
+      {
+        label: 'Gastos', data: meses.map(m => m.gastos),
+        borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,.1)',
+        tension: .3, fill: true, pointRadius: 4
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: { y: { beginAtZero: true, ticks: { callback: v => v + ' €' } } }
+  }
+});
+</script>
+{% endblock %}

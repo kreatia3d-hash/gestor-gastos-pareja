@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Ingresos — Gastos en Pareja{% endblock %}
+{% block page_title %}Ingresos · {{ nombre_mes }} {{ anio }}{% endblock %}
+
+{% block topbar_actions %}
+<div class="mes-selector">
+  {% set mp = mes - 1 if mes > 1 else 12 %}
+  {% set ap = anio if mes > 1 else anio - 1 %}
+  {% set mn = mes + 1 if mes < 12 else 1 %}
+  {% set an = anio if mes < 12 else anio + 1 %}
+  <a href="{{ url_for('ingresos', mes=mp, anio=ap) }}"><i class="bi bi-chevron-left"></i></a>
+  <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
+  <a href="{{ url_for('ingresos', mes=mn, anio=an) }}"><i class="bi bi-chevron-right"></i></a>
+</div>
+<a href="{{ url_for('ingreso_nuevo') }}" class="btn btn-success btn-sm d-none d-md-inline-flex align-items-center gap-1">
+  <i class="bi bi-plus-lg"></i> Nuevo ingreso
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Resumen -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Total ingresos</div>
+      <div class="stat-value text-success">{{ "%.2f"|format(total) }} €</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Nominas</div>
+      <div class="stat-value" style="color:#065f46">{{ "%.2f"|format(total_nomina) }} €</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Otros</div>
+      <div class="stat-value text-secondary">{{ "%.2f"|format(total - total_nomina) }} €</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Registros</div>
+      <div class="stat-value text-primary">{{ ingresos|length }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-center">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <input type="hidden" name="anio" value="{{ anio }}">
+      <div class="col-7 col-md-4">
+        <select name="usr" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">Todos los usuarios</option>
+          {% for u in usuarios %}
+          <option value="{{ u.id }}" {% if usr_filtro == u.id|string %}selected{% endif %}>{{ u.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-5 col-md-3">
+        <a href="{{ url_for('ingresos', mes=mes, anio=anio) }}" class="btn btn-outline-secondary btn-sm w-100">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Listado -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between">
+    <span><i class="bi bi-list-ul me-1 text-success"></i> {{ ingresos|length }} ingreso(s)</span>
+    <span class="fw-bold text-success">Total: {{ "%.2f"|format(total) }} €</span>
+  </div>
+
+  <!-- VISTA ESCRITORIO: tabla -->
+  <div class="table-responsive d-none d-md-block">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Descripcion</th>
+          <th>Usuario</th>
+          <th>Mes</th>
+          <th class="text-end">Importe</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in ingresos %}
+        <tr>
+          <td>
+            <span class="fw-500">{{ i.descripcion }}</span>
+            {% if i.es_nomina %}<span class="badge-nomina ms-1"><i class="bi bi-briefcase me-1"></i>Nomina</span>{% endif %}
+            {% if i.notas %}<br><small class="text-muted">{{ i.notas }}</small>{% endif %}
+          </td>
+          <td>
+            <span class="user-chip" style="color:{{ i.ucolor }};border-color:{{ i.ucolor }}40;background:{{ i.ucolor }}10">
+              <i class="bi bi-{{ i.uemoji }}"></i> {{ i.unombre }}
+            </span>
+          </td>
+          <td><span style="font-size:.83rem;color:#6c757d">{{ i.fecha[:7] }}</span></td>
+          <td class="text-end fw-bold text-success">+{{ "%.2f"|format(i.importe) }} €</td>
+          <td class="text-end" style="white-space:nowrap">
+            <a href="{{ url_for('ingreso_editar', iid=i.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2 ms-1"
+              onclick="confirmarEliminar('{{ url_for('ingreso_eliminar', iid=i.id) }}', 'Eliminar: {{ i.descripcion }}?')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">
+          <i class="bi bi-inbox fs-3 d-block mb-2"></i>No hay ingresos registrados este mes
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- VISTA MOVIL: cards -->
+  <div class="d-md-none">
+    {% for i in ingresos %}
+    <div class="gasto-card-mobile">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width:0;flex:1">
+          <div class="fw-600 text-truncate">{{ i.descripcion }}</div>
+          <div class="mt-1">
+            {% if i.es_nomina %}<span class="badge-nomina" style="font-size:.7rem"><i class="bi bi-briefcase me-1"></i>Nomina</span>{% endif %}
+          </div>
+          <div class="mt-1" style="font-size:.75rem">
+            <span style="color:{{ i.ucolor }}"><i class="bi bi-{{ i.uemoji }}"></i> {{ i.unombre }}</span>
+            <span class="text-muted"> · {{ i.fecha[:7] }}</span>
+          </div>
+          {% if i.notas %}<div style="font-size:.75rem;color:#adb5bd">{{ i.notas }}</div>{% endif %}
+        </div>
+        <div class="text-end flex-shrink-0">
+          <div class="fw-bold text-success" style="font-size:1rem">+{{ "%.2f"|format(i.importe) }} €</div>
+          <div class="d-flex gap-1 mt-2 justify-content-end">
+            <a href="{{ url_for('ingreso_editar', iid=i.id) }}" class="btn btn-sm btn-outline-secondary p-1" style="width:32px;height:32px">
+              <i class="bi bi-pencil" style="font-size:.85rem"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-danger p-1" style="width:32px;height:32px"
+              onclick="confirmarEliminar('{{ url_for('ingreso_eliminar', iid=i.id) }}', '{{ i.descripcion }}')">
+              <i class="bi bi-trash" style="font-size:.85rem"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-2 d-block mb-2"></i>No hay ingresos registrados este mes
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- FAB nuevo ingreso (solo movil) -->
+<a href="{{ url_for('ingreso_nuevo') }}" class="fab fab-green d-md-none" aria-label="Nuevo ingreso">
+  <i class="bi bi-plus-lg"></i>
+</a>
+{% endblock %}
