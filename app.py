@@ -80,18 +80,26 @@ def guardar_backup():
     except Exception as e:
         print(f'[backup] Error al guardar: {e}')
 
+SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'initial_data.json')
+
 def restaurar_desde_backup():
-    """Si la BD está vacía de usuarios, intenta restaurar desde el backup JSON."""
+    """Si la BD está vacía, intenta restaurar: 1) backup en volumen, 2) seed del repo."""
     try:
         conn = get_db()
         cnt = conn.execute('SELECT COUNT(*) as c FROM usuarios').fetchone()['c']
         conn.close()
         if cnt > 0:
             return  # Hay datos, no restaurar
-        if not os.path.exists(BACKUP_PATH):
-            return  # No hay backup
-        print('[backup] Base de datos vacía. Restaurando desde backup...')
-        with open(BACKUP_PATH, 'r', encoding='utf-8') as f:
+        # 1. Backup en volumen persistente
+        if os.path.exists(BACKUP_PATH):
+            source = BACKUP_PATH
+        # 2. Seed embebido en el repo (fallback cuando no hay volumen)
+        elif os.path.exists(SEED_PATH):
+            source = SEED_PATH
+        else:
+            return
+        print(f'[backup] Base de datos vacía. Restaurando desde {source}...')
+        with open(source, 'r', encoding='utf-8') as f:
             data = json.load(f)
         conn = get_db()
         conn.execute("PRAGMA foreign_keys = OFF")
@@ -488,6 +496,16 @@ def inject_globals():
 @app.route('/api/ping')
 def api_ping():
     return jsonify({'app': 'gestorgastos', 'status': 'ok'})
+
+@app.route('/api/backup', methods=['GET'])
+def api_backup_descargar():
+    """Descarga el backup actual como JSON."""
+    guardar_backup()
+    if not os.path.exists(BACKUP_PATH):
+        return jsonify({'error': 'no hay backup'}), 404
+    with open(BACKUP_PATH, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return jsonify(data)
 
 @app.route('/api/backup', methods=['POST'])
 def api_backup_forzar():
