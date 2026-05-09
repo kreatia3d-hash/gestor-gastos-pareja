@@ -228,15 +228,23 @@ def init_db():
         except Exception:
             pass
 
-    # Usuarios por defecto
-    c.execute("SELECT COUNT(*) as cnt FROM usuarios")
-    if c.fetchone()['cnt'] == 0:
-        c.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)", ('Persona 1', '#4f8ef7', 'person'))
-        c.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)", ('Persona 2', '#e74c8e', 'person-fill'))
+    conn.commit()
+    conn.close()
 
-    # Categorias por defecto
-    c.execute("SELECT COUNT(*) as cnt FROM categorias_gasto")
-    if c.fetchone()['cnt'] == 0:
+    # Intentar restaurar desde backup ANTES de insertar datos por defecto
+    restaurar_desde_backup()
+
+    # Solo insertar datos por defecto si la BD sigue vacía (sin backup)
+    conn2 = get_db()
+    c2 = conn2.cursor()
+
+    c2.execute("SELECT COUNT(*) as cnt FROM usuarios")
+    if c2.fetchone()['cnt'] == 0:
+        c2.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)", ('Persona 1', '#4f8ef7', 'person'))
+        c2.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)", ('Persona 2', '#e74c8e', 'person-fill'))
+
+    c2.execute("SELECT COUNT(*) as cnt FROM categorias_gasto")
+    if c2.fetchone()['cnt'] == 0:
         cats = [
             ('Alimentacion', '#28a745', 'bi-basket2', 0),
             ('Ocio', '#ffc107', 'bi-controller', 0),
@@ -247,22 +255,19 @@ def init_db():
             ('Viajes', '#fd7e14', 'bi-airplane', 0),
             ('Suscripciones', '#20c997', 'bi-phone', 0),
             ('Ahorro', '#0d6efd', 'bi-piggy-bank', 1),
-            ('Otros', '#6c757d', 'bi-three-dots', 0),
+            ('Otros', '#6c757d', 'bi-tres-dots', 0),
         ]
         for cat in cats:
-            c.execute("INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, ?)", cat)
+            c2.execute("INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, ?)", cat)
     else:
-        # Asegurar que existe la categoria Ahorro
-        c.execute("SELECT id FROM categorias_gasto WHERE es_ahorro=1")
-        if not c.fetchone():
-            c.execute("INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, 1)",
-                      ('Ahorro', '#0d6efd', 'bi-piggy-bank'))
+        c2.execute("SELECT id FROM categorias_gasto WHERE es_ahorro=1")
+        if not c2.fetchone():
+            c2.execute("INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, 1)",
+                       ('Ahorro', '#0d6efd', 'bi-piggy-bank'))
 
-    conn.commit()
-    conn.close()
+    conn2.commit()
+    conn2.close()
 
-    # Restaurar desde backup si la BD quedó vacía
-    restaurar_desde_backup()
     # Guardar backup actualizado
     guardar_backup()
 
