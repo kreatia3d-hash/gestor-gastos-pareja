@@ -427,33 +427,103 @@ def api_tunnel():
 @app.route('/api/usuarios')
 def api_usuarios():
     conn = get_db()
-    rows = conn.execute("SELECT id, nombre, color, emoji, foto FROM usuarios").fetchall()
+    rows = conn.execute("SELECT id, nombre, color, emoji, foto, pin FROM usuarios").fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
+
+@app.route('/api/usuarios/<int:uid>', methods=['PUT'])
+def api_usuario_editar(uid):
+    d = request.get_json()
+    conn = get_db()
+    conn.execute("UPDATE usuarios SET nombre=?, color=?, emoji=? WHERE id=?", (
+        d.get('nombre','').strip(), d.get('color','#4f8ef7'), d.get('emoji','person'), uid))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/usuarios/<int:uid>/pin', methods=['PUT'])
+def api_usuario_pin(uid):
+    d = request.get_json()
+    pin = d.get('pin', '').strip()
+    conn = get_db()
+    conn.execute("UPDATE usuarios SET pin=? WHERE id=?", (pin if pin else None, uid))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    d = request.get_json()
+    uid = d.get('usuario_id')
+    pin = d.get('pin', '')
+    conn = get_db()
+    u = conn.execute("SELECT pin FROM usuarios WHERE id=?", (uid,)).fetchone()
+    conn.close()
+    if u is None:
+        return jsonify({'ok': False, 'error': 'Usuario no encontrado'}), 404
+    if u['pin'] and u['pin'] != pin:
+        return jsonify({'ok': False, 'error': 'PIN incorrecto'}), 401
+    return jsonify({'ok': True})
 
 @app.route('/api/categorias')
 def api_categorias():
     conn = get_db()
-    rows = conn.execute("SELECT * FROM categorias_gasto WHERE activa=1 ORDER BY nombre").fetchall()
+    rows = conn.execute("SELECT * FROM categorias_gasto ORDER BY nombre").fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
+
+@app.route('/api/categorias', methods=['POST'])
+def api_categoria_crear():
+    d = request.get_json()
+    conn = get_db()
+    cur = conn.execute("INSERT INTO categorias_gasto (nombre, color, icono) VALUES(?,?,?)", (
+        d.get('nombre','').strip(), d.get('color','#6c757d'), d.get('icono','bi-tag')))
+    conn.commit()
+    cid = cur.lastrowid
+    conn.close()
+    return jsonify({'id': cid}), 201
+
+@app.route('/api/categorias/<int:cid>', methods=['DELETE'])
+def api_categoria_eliminar(cid):
+    conn = get_db()
+    cat = conn.execute("SELECT es_ahorro FROM categorias_gasto WHERE id=?", (cid,)).fetchone()
+    if cat and cat['es_ahorro']:
+        return jsonify({'ok': False, 'error': 'No se puede eliminar la categoría de Ahorro'}), 400
+    cnt = conn.execute("SELECT COUNT(*) as c FROM gastos WHERE categoria_id=?", (cid,)).fetchone()['c']
+    if cnt > 0:
+        return jsonify({'ok': False, 'error': f'Hay {cnt} gasto(s) con esta categoría'}), 400
+    conn.execute("DELETE FROM categorias_gasto WHERE id=?", (cid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 @app.route('/api/gastos')
 def api_gastos():
     mes = request.args.get('mes', date.today().month, type=int)
     anio = request.args.get('anio', date.today().year, type=int)
+    cat_filtro = request.args.get('cat', '')
+    usr_filtro = request.args.get('usr', '')
+    fijo_filtro = request.args.get('fijo', '')
     mes_str = f"{anio}-{mes:02d}"
     auto_generar_mes(mes_str)
     conn = get_db()
-    rows = conn.execute("""
-        SELECT g.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji,
+    q = """SELECT g.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji,
                c.nombre as cnombre, c.color as ccolor, c.icono as cicono
         FROM gastos g
         LEFT JOIN usuarios u ON g.usuario_id=u.id
         LEFT JOIN categorias_gasto c ON g.categoria_id=c.id
-        WHERE strftime('%Y-%m', g.fecha)=?
-        ORDER BY g.fecha DESC, g.created_at DESC
-    """, (mes_str,)).fetchall()
+        WHERE strftime('%Y-%m', g.fecha)=?"""
+    params = [mes_str]
+    if cat_filtro:
+        q += " AND g.categoria_id=?"; params.append(cat_filtro)
+    if usr_filtro:
+        q += " AND g.usuario_id=?"; params.append(usr_filtro)
+    if fijo_filtro == '1':
+        q += " AND g.es_fijo=1"
+    elif fijo_filtro == '0':
+        q += " AND g.es_fijo=0"
+    q += " ORDER BY g.fecha DESC, g.created_at DESC"
+    rows = conn.execute(q, params).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -643,6 +713,40 @@ def api_meta_crear():
     mid = cur.lastrowid
     conn.close()
     return jsonify({'id': mid}), 201
+
+@app.route('/api/metas/<int:mid>', methods=['PUT'])
+def api_meta_editar(mid):
+    d = request.get_json()
+    conn = get_db()
+    conn.execute("""UPDATE metas_ahorro SET nombre=?, descripcion=?, importe_objetivo=?,
+        fecha_limite=?, color=? WHERE id=?""", (
+        d.get('nombre','').strip(), d.get('descripcion','').strip(),
+        float(d.get('importe_objetivo',0)),
+        d.get('fecha_limite') or None, d.get('color','#4f8ef7'), mid))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/metas/<int:mid>', methods=['DELETE'])
+def api_meta_eliminar_api(mid):
+    conn = get_db()
+    conn.execute("DELETE FROM aportaciones_meta WHERE meta_id=?", (mid,))
+    conn.execute("UPDATE gastos SET meta_id=NULL WHERE meta_id=?", (mid,))
+    conn.execute("DELETE FROM metas_ahorro WHERE id=?", (mid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/metas/<int:mid>/aportaciones')
+def api_meta_aportaciones(mid):
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT a.*, u.nombre as unombre, u.color as ucolor
+        FROM aportaciones_meta a LEFT JOIN usuarios u ON a.usuario_id=u.id
+        WHERE a.meta_id=? ORDER BY a.fecha DESC
+    """, (mid,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
 
 @app.route('/api/metas/<int:mid>/abonar', methods=['POST'])
 def api_meta_abonar(mid):
