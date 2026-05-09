@@ -230,11 +230,18 @@ def init_db():
         "ALTER TABLE categorias_gasto ADD COLUMN es_ahorro INTEGER DEFAULT 0",
         "ALTER TABLE gastos ADD COLUMN meta_id INTEGER",
         "ALTER TABLE aportaciones_meta ADD COLUMN gasto_id INTEGER",
+        "ALTER TABLE presupuestos ADD COLUMN mes INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE presupuestos ADD COLUMN anio INTEGER NOT NULL DEFAULT 0",
     ]:
         try:
             c.execute(migration)
         except Exception:
             pass
+
+    # Migrar presupuestos globales (mes=0, anio=0) al mes actual
+    hoy_mig = date.today()
+    c.execute("UPDATE presupuestos SET mes=?, anio=? WHERE mes=0 AND anio=0",
+              (hoy_mig.month, hoy_mig.year))
 
     conn.commit()
     conn.close()
@@ -569,10 +576,28 @@ def api_copiar_mes():
             )
             n_ingresos += 1
 
+    # Presupuestos del mes origen → mes destino (sin duplicados)
+    presupuestos = conn.execute(
+        "SELECT * FROM presupuestos WHERE mes=? AND anio=?", (m_orig, y_orig)
+    ).fetchall()
+    n_presupuestos = 0
+    for p in presupuestos:
+        existe = conn.execute(
+            "SELECT id FROM presupuestos WHERE categoria_id=? AND mes=? AND anio=?",
+            (p['categoria_id'], m_dest, y_dest)
+        ).fetchone()
+        if not existe:
+            conn.execute(
+                "INSERT INTO presupuestos (categoria_id, importe_mensual, mes, anio) VALUES(?,?,?,?)",
+                (p['categoria_id'], p['importe_mensual'], m_dest, y_dest)
+            )
+            n_presupuestos += 1
+
     conn.commit()
     conn.close()
     threading.Thread(target=guardar_backup, daemon=True).start()
-    return jsonify({'ok': True, 'gastos_copiados': n_gastos, 'ingresos_copiados': n_ingresos})
+    return jsonify({'ok': True, 'gastos_copiados': n_gastos, 'ingresos_copiados': n_ingresos,
+                    'presupuestos_copiados': n_presupuestos})
 
 
 @app.route('/usuarios/<int:uid>/foto', methods=['POST'])
@@ -1034,21 +1059,37 @@ def api_presupuestos():
                            AND strftime('%Y-%m',g.fecha)=?), 0) as gastado
         FROM presupuestos p
         JOIN categorias_gasto c ON c.id=p.categoria_id
+        WHERE p.mes=? AND p.anio=?
         ORDER BY c.nombre
-    """, (mes_str,)).fetchall()
+    """, (mes_str, mes, anio)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
 @app.route('/api/presupuestos', methods=['POST'])
 def api_presupuesto_crear():
     d = request.get_json()
+    hoy = date.today()
+    mes  = int(d.get('mes',  hoy.month))
+    anio = int(d.get('anio', hoy.year))
+    cat_id = d.get('categoria_id')
+    importe = float(d.get('importe_mensual', 0))
     conn = get_db()
     try:
-        cur = conn.execute("INSERT OR REPLACE INTO presupuestos (categoria_id, importe_mensual) VALUES(?,?)", (
-            d.get('categoria_id'), float(d.get('importe_mensual', 0))
-        ))
+        existe = conn.execute(
+            "SELECT id FROM presupuestos WHERE categoria_id=? AND mes=? AND anio=?",
+            (cat_id, mes, anio)
+        ).fetchone()
+        if existe:
+            conn.execute("UPDATE presupuestos SET importe_mensual=? WHERE id=?",
+                         (importe, existe['id']))
+            pid = existe['id']
+        else:
+            cur = conn.execute(
+                "INSERT INTO presupuestos (categoria_id, importe_mensual, mes, anio) VALUES(?,?,?,?)",
+                (cat_id, importe, mes, anio)
+            )
+            pid = cur.lastrowid
         conn.commit()
-        pid = cur.lastrowid
     except Exception as e:
         conn.close()
         return jsonify({'ok': False, 'error': str(e)}), 400
