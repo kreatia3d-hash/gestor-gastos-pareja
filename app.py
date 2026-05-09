@@ -121,6 +121,9 @@ def restaurar_desde_backup():
         for a in data.get('aportaciones', []):
             conn.execute("INSERT OR REPLACE INTO aportaciones_meta (id,meta_id,usuario_id,importe,fecha,notas,gasto_id) VALUES(?,?,?,?,?,?,?)",
                 (a['id'],a['meta_id'],a.get('usuario_id'),a['importe'],a['fecha'],a.get('notas'),a.get('gasto_id')))
+        for p in data.get('presupuestos', []):
+            conn.execute("INSERT OR REPLACE INTO presupuestos (id,categoria_id,importe_mensual,mes,anio) VALUES(?,?,?,?,?)",
+                (p['id'],p['categoria_id'],p['importe_mensual'],p.get('mes',0),p.get('anio',0)))
         conn.execute("PRAGMA foreign_keys = ON")
         conn.commit()
         conn.close()
@@ -633,7 +636,12 @@ def api_usuarios():
     conn = get_db()
     rows = conn.execute("SELECT id, nombre, color, emoji, foto, pin FROM usuarios").fetchall()
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['tiene_pin'] = bool(d.pop('pin'))  # No exponer el PIN real
+        result.append(d)
+    return jsonify(result)
 
 @app.route('/api/usuarios/<int:uid>', methods=['PUT'])
 def api_usuario_editar(uid):
@@ -768,10 +776,13 @@ def api_gasto_crear():
     # Notificar a los demás usuarios en transacción separada (no bloquea la creación)
     try:
         desc = d.get('descripcion', '').strip()
-        otros = conn.execute("SELECT id FROM usuarios WHERE id != ?", (usuario_id or -1,)).fetchall()
+        creado_por = d.get('creado_por') or usuario_id
+        quien_row = conn.execute("SELECT nombre FROM usuarios WHERE id=?", (creado_por,)).fetchone() if creado_por else None
+        quien = quien_row['nombre'] if quien_row else 'Alguien'
+        otros = conn.execute("SELECT id FROM usuarios WHERE id != ?", (creado_por or -1,)).fetchall()
         for u in otros:
             conn.execute("""INSERT INTO notificaciones (usuario_id, titulo, cuerpo)
-                VALUES(?,?,?)""", (u['id'], 'Nuevo gasto añadido', f'{desc}: {importe:.2f}€'))
+                VALUES(?,?,?)""", (u['id'], f'{quien} añadió un gasto', f'{desc}: {importe:.2f}€'))
         conn.commit()
     except Exception:
         pass
@@ -827,18 +838,32 @@ def api_ingresos():
 @app.route('/api/ingresos', methods=['POST'])
 def api_ingreso_crear():
     d = request.get_json()
+    usuario_id = d.get('usuario_id')
+    desc = d.get('descripcion', '').strip()
+    importe = float(d.get('importe', 0))
     conn = get_db()
     cur = conn.execute("""INSERT INTO ingresos
         (usuario_id, descripcion, importe, fecha, es_nomina, notas)
         VALUES(?,?,?,?,?,?)""", (
-        d.get('usuario_id'),
-        d.get('descripcion', '').strip(),
-        float(d.get('importe', 0)),
+        usuario_id, desc, importe,
         d.get('fecha'), 1 if d.get('es_nomina') else 0,
         d.get('notas', '').strip()
     ))
     conn.commit()
     iid = cur.lastrowid
+
+    try:
+        creado_por = d.get('creado_por') or usuario_id
+        quien_row = conn.execute("SELECT nombre FROM usuarios WHERE id=?", (creado_por,)).fetchone() if creado_por else None
+        quien = quien_row['nombre'] if quien_row else 'Alguien'
+        otros = conn.execute("SELECT id FROM usuarios WHERE id != ?", (creado_por or -1,)).fetchall()
+        for u in otros:
+            conn.execute("""INSERT INTO notificaciones (usuario_id, titulo, cuerpo)
+                VALUES(?,?,?)""", (u['id'], f'{quien} añadió un ingreso', f'{desc}: {importe:.2f}€'))
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
     return jsonify({'id': iid}), 201
 
