@@ -191,6 +191,42 @@
       "usuario_id": 1
     },
     {
+      "categoria_id": 3,
+      "ccolor": "#dc3545",
+      "cicono": "bi-car-front",
+      "cnombre": "Coche",
+      "created_at": "2026-05-09 19:33:53",
+      "descripcion": "Nnn",
+      "es_fijo": 1,
+      "fecha": "2026-05-01",
+      "id": 36,
+      "importe": 160.0,
+      "meta_id": null,
+      "notas": "",
+      "ucolor": null,
+      "uemoji": null,
+      "unombre": null,
+      "usuario_id": null
+    },
+    {
+      "categoria_id": 3,
+      "ccolor": "#dc3545",
+      "cicono": "bi-car-front",
+      "cnombre": "Coche",
+      "created_at": "2026-05-09 19:33:40",
+      "descripcion": "Nnn",
+      "es_fijo": 0,
+      "fecha": "2026-05-01",
+      "id": 35,
+      "importe": 160.0,
+      "meta_id": null,
+      "notas": "",
+      "ucolor": null,
+      "uemoji": null,
+      "unombre": null,
+      "usuario_id": null
+    },
+    {
       "categoria_id": 4,
       "ccolor": "#17a2b8",
       "cicono": "bi-house",
@@ -207,24 +243,6 @@
       "uemoji": "person-circle",
       "unombre": "Leo",
       "usuario_id": 1
-    },
-    {
-      "categoria_id": 3,
-      "ccolor": "#dc3545",
-      "cicono": "bi-car-front",
-      "cnombre": "Coche",
-      "created_at": "2026-05-09 18:19:20",
-      "descripcion": "Nnn",
-      "es_fijo": 1,
-      "fecha": "2026-05-01",
-      "id": 32,
-      "importe": 160.0,
-      "meta_id": null,
-      "notas": "",
-      "ucolor": null,
-      "uemoji": null,
-      "unombre": null,
-      "usuario_id": null
     },
     {
       "categoria_id": 3,
@@ -953,20 +971,7 @@
       "usuario_id": 1
     }
   ],
-  "metas": [
-    {
-      "color": "#4f8ef7",
-      "completada": 0,
-      "created_at": "2026-05-09 17:21:39",
-      "descripcion": "",
-      "fecha_limite": "2026-06",
-      "id": 1,
-      "importe_actual": 100.0,
-      "importe_objetivo": 500.0,
-      "nombre": "viaje",
-      "progreso": 20.0
-    }
-  ],
+  "metas": [],
   "aportaciones": [],
   "backup_at": "2026-05-09T19:30:00"
 }

@@ -684,7 +684,6 @@ def api_gastos():
     usr_filtro = request.args.get('usr', '')
     fijo_filtro = request.args.get('fijo', '')
     mes_str = f"{anio}-{mes:02d}"
-    auto_generar_mes(mes_str)
     conn = get_db()
     q = """SELECT g.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji,
                c.nombre as cnombre, c.color as ccolor, c.icono as cicono
@@ -789,7 +788,6 @@ def api_ingresos():
     mes = request.args.get('mes', date.today().month, type=int)
     anio = request.args.get('anio', date.today().year, type=int)
     mes_str = f"{anio}-{mes:02d}"
-    auto_generar_mes(mes_str)
     conn = get_db()
     rows = conn.execute("""
         SELECT i.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji
@@ -849,7 +847,6 @@ def api_dashboard():
     mes = request.args.get('mes', date.today().month, type=int)
     anio = request.args.get('anio', date.today().year, type=int)
     mes_str = f"{anio}-{mes:02d}"
-    auto_generar_mes(mes_str)
     conn = get_db()
 
     total_gastos = conn.execute(
