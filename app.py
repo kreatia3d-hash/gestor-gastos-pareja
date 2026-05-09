@@ -54,6 +54,69 @@ def get_db():
     return conn
 
 
+BACKUP_PATH = os.path.join(DATA_DIR, 'backup_datos.json')
+
+def guardar_backup():
+    """Guarda un JSON con todos los datos. Se llama al arrancar y por endpoint."""
+    try:
+        conn = get_db()
+        data = {
+            'usuarios':    [dict(r) for r in conn.execute('SELECT * FROM usuarios').fetchall()],
+            'categorias':  [dict(r) for r in conn.execute('SELECT * FROM categorias_gasto').fetchall()],
+            'gastos':      [dict(r) for r in conn.execute('SELECT * FROM gastos').fetchall()],
+            'ingresos':    [dict(r) for r in conn.execute('SELECT * FROM ingresos').fetchall()],
+            'metas':       [dict(r) for r in conn.execute('SELECT * FROM metas_ahorro').fetchall()],
+            'aportaciones':[dict(r) for r in conn.execute('SELECT * FROM aportaciones_meta').fetchall()],
+            'backup_at':   datetime.now().isoformat(),
+        }
+        conn.close()
+        with open(BACKUP_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f'[backup] Guardado en {BACKUP_PATH}')
+    except Exception as e:
+        print(f'[backup] Error al guardar: {e}')
+
+def restaurar_desde_backup():
+    """Si la BD está vacía de usuarios, intenta restaurar desde el backup JSON."""
+    try:
+        conn = get_db()
+        cnt = conn.execute('SELECT COUNT(*) as c FROM usuarios').fetchone()['c']
+        conn.close()
+        if cnt > 0:
+            return  # Hay datos, no restaurar
+        if not os.path.exists(BACKUP_PATH):
+            return  # No hay backup
+        print('[backup] Base de datos vacía. Restaurando desde backup...')
+        with open(BACKUP_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        conn = get_db()
+        conn.execute("PRAGMA foreign_keys = OFF")
+        for u in data.get('usuarios', []):
+            conn.execute("INSERT OR REPLACE INTO usuarios (id,nombre,color,emoji,pin,foto) VALUES(?,?,?,?,?,?)",
+                (u['id'],u['nombre'],u['color'],u.get('emoji','person'),u.get('pin'),u.get('foto')))
+        for c in data.get('categorias', []):
+            conn.execute("INSERT OR REPLACE INTO categorias_gasto (id,nombre,color,icono,activa,es_ahorro) VALUES(?,?,?,?,?,?)",
+                (c['id'],c['nombre'],c['color'],c.get('icono','bi-tag'),c.get('activa',1),c.get('es_ahorro',0)))
+        for g in data.get('gastos', []):
+            conn.execute("INSERT OR REPLACE INTO gastos (id,usuario_id,categoria_id,descripcion,importe,fecha,es_fijo,notas,meta_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (g['id'],g.get('usuario_id'),g.get('categoria_id'),g['descripcion'],g['importe'],g['fecha'],g.get('es_fijo',0),g.get('notas'),g.get('meta_id'),g.get('created_at')))
+        for i in data.get('ingresos', []):
+            conn.execute("INSERT OR REPLACE INTO ingresos (id,usuario_id,descripcion,importe,fecha,es_nomina,notas,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                (i['id'],i.get('usuario_id'),i['descripcion'],i['importe'],i['fecha'],i.get('es_nomina',0),i.get('notas'),i.get('created_at')))
+        for m in data.get('metas', []):
+            conn.execute("INSERT OR REPLACE INTO metas_ahorro (id,nombre,descripcion,importe_objetivo,importe_actual,fecha_limite,completada,color,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                (m['id'],m['nombre'],m.get('descripcion'),m['importe_objetivo'],m.get('importe_actual',0),m.get('fecha_limite'),m.get('completada',0),m.get('color','#4f8ef7'),m.get('created_at')))
+        for a in data.get('aportaciones', []):
+            conn.execute("INSERT OR REPLACE INTO aportaciones_meta (id,meta_id,usuario_id,importe,fecha,notas,gasto_id) VALUES(?,?,?,?,?,?,?)",
+                (a['id'],a['meta_id'],a.get('usuario_id'),a['importe'],a['fecha'],a.get('notas'),a.get('gasto_id')))
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.commit()
+        conn.close()
+        print(f'[backup] Restauración completada desde {BACKUP_PATH}')
+    except Exception as e:
+        print(f'[backup] Error al restaurar: {e}')
+
+
 def init_db():
     conn = get_db()
     c = conn.cursor()
@@ -193,6 +256,11 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+    # Restaurar desde backup si la BD quedó vacía
+    restaurar_desde_backup()
+    # Guardar backup actualizado
+    guardar_backup()
 
 
 def auto_generar_mes(mes_str):
@@ -412,6 +480,12 @@ def inject_globals():
 def api_ping():
     return jsonify({'app': 'gestorgastos', 'status': 'ok'})
 
+@app.route('/api/backup', methods=['POST'])
+def api_backup_forzar():
+    guardar_backup()
+    size = os.path.getsize(BACKUP_PATH) if os.path.exists(BACKUP_PATH) else 0
+    return jsonify({'ok': True, 'size_bytes': size, 'path': BACKUP_PATH})
+
 
 @app.route('/usuarios/<int:uid>/foto', methods=['POST'])
 def usuario_foto(uid):
@@ -577,15 +651,24 @@ def api_gasto_crear():
                 conn.execute("""INSERT INTO aportaciones_meta (meta_id, usuario_id, importe, fecha, notas, gasto_id)
                     VALUES(?,?,?,?,?,?)""", (meta_id, usuario_id, importe, d.get('fecha'), d.get('notas',''), gid))
 
-    # Notificar a todos los demás usuarios
-    desc = d.get('descripcion', '').strip()
-    otros = conn.execute("SELECT id FROM usuarios WHERE id != ?", (usuario_id or -1,)).fetchall()
-    for u in otros:
-        conn.execute("""INSERT INTO notificaciones (usuario_id, titulo, cuerpo)
-            VALUES(?,?,?)""", (u['id'], 'Nuevo gasto añadido', f'{desc}: {importe:.2f}€'))
-
     conn.commit()
+
+    # Notificar a los demás usuarios en transacción separada (no bloquea la creación)
+    try:
+        desc = d.get('descripcion', '').strip()
+        otros = conn.execute("SELECT id FROM usuarios WHERE id != ?", (usuario_id or -1,)).fetchall()
+        for u in otros:
+            conn.execute("""INSERT INTO notificaciones (usuario_id, titulo, cuerpo)
+                VALUES(?,?,?)""", (u['id'], 'Nuevo gasto añadido', f'{desc}: {importe:.2f}€'))
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
+
+    # Actualizar backup tras cambio de datos
+    threading.Thread(target=guardar_backup, daemon=True).start()
+
     return jsonify({'id': gid}), 201
 
 @app.route('/api/gastos/<int:gid>', methods=['PUT'])
@@ -610,6 +693,7 @@ def api_gasto_eliminar(gid):
     conn.execute("DELETE FROM gastos WHERE id=?", (gid,))
     conn.commit()
     conn.close()
+    threading.Thread(target=guardar_backup, daemon=True).start()
     return jsonify({'ok': True})
 
 @app.route('/api/ingresos')
@@ -669,6 +753,7 @@ def api_ingreso_eliminar(iid):
     conn.execute("DELETE FROM ingresos WHERE id=?", (iid,))
     conn.commit()
     conn.close()
+    threading.Thread(target=guardar_backup, daemon=True).start()
     return jsonify({'ok': True})
 
 @app.route('/api/dashboard')
