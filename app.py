@@ -513,6 +513,67 @@ def api_backup_forzar():
     size = os.path.getsize(BACKUP_PATH) if os.path.exists(BACKUP_PATH) else 0
     return jsonify({'ok': True, 'size_bytes': size, 'path': BACKUP_PATH})
 
+@app.route('/api/copiar_mes', methods=['POST'])
+def api_copiar_mes():
+    """Copia gastos fijos e ingresos nómina de un mes al siguiente."""
+    d = request.get_json()
+    m_orig  = int(d.get('mes_origen', 0))
+    y_orig  = int(d.get('anio_origen', 0))
+    m_dest  = int(d.get('mes_destino', 0))
+    y_dest  = int(d.get('anio_destino', 0))
+    if not all([m_orig, y_orig, m_dest, y_dest]):
+        return jsonify({'error': 'faltan parámetros'}), 400
+
+    orig_str = f'{y_orig}-{m_orig:02d}'
+    dest_str = f'{y_dest}-{m_dest:02d}'
+    fecha_dest = f'{y_dest}-{m_dest:02d}-01'
+
+    conn = get_db()
+
+    # Gastos fijos del mes origen → mes destino (sin duplicados)
+    gastos = conn.execute(
+        "SELECT * FROM gastos WHERE es_fijo=1 AND substr(fecha,1,7)=?", (orig_str,)
+    ).fetchall()
+    n_gastos = 0
+    for g in gastos:
+        existe = conn.execute(
+            """SELECT id FROM gastos WHERE es_fijo=1 AND descripcion=?
+               AND importe=? AND substr(fecha,1,7)=?""",
+            (g['descripcion'], g['importe'], dest_str)
+        ).fetchone()
+        if not existe:
+            conn.execute(
+                """INSERT INTO gastos (usuario_id,categoria_id,descripcion,importe,
+                   fecha,es_fijo,notas,meta_id) VALUES(?,?,?,?,?,1,?,?)""",
+                (g['usuario_id'], g['categoria_id'], g['descripcion'],
+                 g['importe'], fecha_dest, g['notas'], g['meta_id'])
+            )
+            n_gastos += 1
+
+    # Ingresos nómina del mes origen → mes destino (sin duplicados)
+    ingresos = conn.execute(
+        "SELECT * FROM ingresos WHERE es_nomina=1 AND substr(fecha,1,7)=?", (orig_str,)
+    ).fetchall()
+    n_ingresos = 0
+    for i in ingresos:
+        existe = conn.execute(
+            """SELECT id FROM ingresos WHERE es_nomina=1 AND descripcion=?
+               AND importe=? AND substr(fecha,1,7)=?""",
+            (i['descripcion'], i['importe'], dest_str)
+        ).fetchone()
+        if not existe:
+            conn.execute(
+                """INSERT INTO ingresos (usuario_id,descripcion,importe,
+                   fecha,es_nomina,notas) VALUES(?,?,?,?,1,?)""",
+                (i['usuario_id'], i['descripcion'], i['importe'], fecha_dest, i['notas'])
+            )
+            n_ingresos += 1
+
+    conn.commit()
+    conn.close()
+    threading.Thread(target=guardar_backup, daemon=True).start()
+    return jsonify({'ok': True, 'gastos_copiados': n_gastos, 'ingresos_copiados': n_ingresos})
+
 
 @app.route('/usuarios/<int:uid>/foto', methods=['POST'])
 def usuario_foto(uid):
