@@ -131,6 +131,23 @@ def init_db():
         value TEXT
     )''')
 
+    c.execute('''CREATE TABLE IF NOT EXISTS notificaciones (
+        id INTEGER PRIMARY KEY,
+        usuario_id INTEGER NOT NULL,
+        titulo TEXT NOT NULL,
+        cuerpo TEXT NOT NULL,
+        leida INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
+        id INTEGER PRIMARY KEY,
+        categoria_id INTEGER NOT NULL UNIQUE,
+        importe_mensual REAL NOT NULL,
+        FOREIGN KEY (categoria_id) REFERENCES categorias_gasto(id)
+    )''')
+
     # Migraciones para bases de datos existentes
     for migration in [
         "ALTER TABLE usuarios ADD COLUMN pin TEXT",
@@ -530,18 +547,44 @@ def api_gastos():
 @app.route('/api/gastos', methods=['POST'])
 def api_gasto_crear():
     d = request.get_json()
+    importe = float(d.get('importe', 0))
+    meta_id = d.get('meta_id')
+    usuario_id = d.get('usuario_id')
+    categoria_id = d.get('categoria_id')
     conn = get_db()
+
     cur = conn.execute("""INSERT INTO gastos
-        (usuario_id, categoria_id, descripcion, importe, fecha, es_fijo, notas)
-        VALUES(?,?,?,?,?,?,?)""", (
-        d.get('usuario_id'), d.get('categoria_id'),
+        (usuario_id, categoria_id, descripcion, importe, fecha, es_fijo, notas, meta_id)
+        VALUES(?,?,?,?,?,?,?,?)""", (
+        usuario_id, categoria_id,
         d.get('descripcion', '').strip(),
-        float(d.get('importe', 0)),
+        importe,
         d.get('fecha'), 1 if d.get('es_fijo') else 0,
-        d.get('notas', '').strip()
+        d.get('notas', '').strip(), meta_id
     ))
-    conn.commit()
     gid = cur.lastrowid
+
+    # Si la categoría es ahorro y hay meta vinculada, actualizar meta
+    if categoria_id and meta_id:
+        cat = conn.execute("SELECT es_ahorro FROM categorias_gasto WHERE id=?", (categoria_id,)).fetchone()
+        if cat and cat['es_ahorro']:
+            meta = conn.execute("SELECT * FROM metas_ahorro WHERE id=?", (meta_id,)).fetchone()
+            if meta:
+                nuevo_total = meta['importe_actual'] + importe
+                completada = 1 if nuevo_total >= meta['importe_objetivo'] else 0
+                conn.execute("UPDATE metas_ahorro SET importe_actual=?, completada=? WHERE id=?",
+                             (nuevo_total, completada, meta_id))
+                conn.execute("""INSERT INTO aportaciones_meta (meta_id, usuario_id, importe, fecha, notas, gasto_id)
+                    VALUES(?,?,?,?,?,?)""", (meta_id, usuario_id, importe, d.get('fecha'), d.get('notas',''), gid))
+
+    # Notificar a todos los demás usuarios
+    desc = d.get('descripcion', '').strip()
+    otros = conn.execute("SELECT id FROM usuarios WHERE id != ?", (usuario_id or -1,)).fetchall()
+    for u in otros:
+        conn.execute("""INSERT INTO notificaciones (usuario_id, titulo, cuerpo)
+            VALUES(?,?,?)""", (u['id'], 'Nuevo gasto añadido', f'{desc}: {importe:.2f}€'))
+
+    conn.commit()
     conn.close()
     return jsonify({'id': gid}), 201
 
@@ -776,6 +819,124 @@ def api_resumen():
         meses.append({'mes': NOMBRES_MESES[m-1], 'mes_num': m, 'gastos': g, 'ingresos': inc, 'balance': inc-g})
     conn.close()
     return jsonify({'anio': anio, 'meses': meses})
+
+
+# ── Foto de perfil (Flutter) ─────────────────────────────────────────────────
+
+@app.route('/api/usuarios/<int:uid>/foto_flutter', methods=['POST'])
+def api_usuario_foto_flutter(uid):
+    foto = request.files.get('foto')
+    if not foto or not foto.filename:
+        return jsonify({'ok': False, 'error': 'Sin archivo'}), 400
+    ext = foto.filename.rsplit('.', 1)[-1].lower()
+    if ext not in ('jpg', 'jpeg', 'png', 'webp', 'gif'):
+        ext = 'jpg'
+    fotos_dir = os.path.join(DATA_DIR, 'fotos')
+    os.makedirs(fotos_dir, exist_ok=True)
+    nombre = f'usuario_{uid}.{ext}'
+    foto.save(os.path.join(fotos_dir, nombre))
+    conn = get_db()
+    conn.execute("UPDATE usuarios SET foto=? WHERE id=?", (nombre, uid))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'foto': nombre})
+
+@app.route('/api/fotos/<path:filename>')
+def api_foto_serve(filename):
+    from flask import send_from_directory
+    fotos_dir = os.path.join(DATA_DIR, 'fotos')
+    return send_from_directory(fotos_dir, filename)
+
+
+# ── Presupuestos ─────────────────────────────────────────────────────────────
+
+@app.route('/api/presupuestos')
+def api_presupuestos():
+    mes = request.args.get('mes', date.today().month, type=int)
+    anio = request.args.get('anio', date.today().year, type=int)
+    mes_str = f"{anio}-{mes:02d}"
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT p.id, p.categoria_id, p.importe_mensual,
+               c.nombre as categoria_nombre, c.color as categoria_color,
+               COALESCE((SELECT SUM(g.importe) FROM gastos g
+                         WHERE g.categoria_id=p.categoria_id
+                           AND strftime('%Y-%m',g.fecha)=?), 0) as gastado
+        FROM presupuestos p
+        JOIN categorias_gasto c ON c.id=p.categoria_id
+        ORDER BY c.nombre
+    """, (mes_str,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/presupuestos', methods=['POST'])
+def api_presupuesto_crear():
+    d = request.get_json()
+    conn = get_db()
+    try:
+        cur = conn.execute("INSERT OR REPLACE INTO presupuestos (categoria_id, importe_mensual) VALUES(?,?)", (
+            d.get('categoria_id'), float(d.get('importe_mensual', 0))
+        ))
+        conn.commit()
+        pid = cur.lastrowid
+    except Exception as e:
+        conn.close()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    conn.close()
+    return jsonify({'id': pid}), 201
+
+@app.route('/api/presupuestos/<int:pid>', methods=['PUT'])
+def api_presupuesto_editar(pid):
+    d = request.get_json()
+    conn = get_db()
+    conn.execute("UPDATE presupuestos SET importe_mensual=? WHERE id=?",
+                 (float(d.get('importe_mensual', 0)), pid))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/presupuestos/<int:pid>', methods=['DELETE'])
+def api_presupuesto_eliminar(pid):
+    conn = get_db()
+    conn.execute("DELETE FROM presupuestos WHERE id=?", (pid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ── Notificaciones ───────────────────────────────────────────────────────────
+
+@app.route('/api/notificaciones')
+def api_notificaciones():
+    uid = request.args.get('usuario_id', type=int)
+    if not uid:
+        return jsonify([])
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT * FROM notificaciones
+        WHERE usuario_id=? AND leida=0
+        ORDER BY created_at DESC LIMIT 50
+    """, (uid,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/notificaciones/<int:nid>/leer', methods=['POST'])
+def api_notificacion_leer(nid):
+    conn = get_db()
+    conn.execute("UPDATE notificaciones SET leida=1 WHERE id=?", (nid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/notificaciones/leer_todas', methods=['POST'])
+def api_notificaciones_leer_todas():
+    uid = request.get_json().get('usuario_id')
+    if uid:
+        conn = get_db()
+        conn.execute("UPDATE notificaciones SET leida=1 WHERE usuario_id=?", (uid,))
+        conn.commit()
+        conn.close()
+    return jsonify({'ok': True})
 
 
 # ── INICIO / USUARIO ─────────────────────────────────────────
