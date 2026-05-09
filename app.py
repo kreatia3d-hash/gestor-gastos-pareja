@@ -13,12 +13,14 @@ PORT       = int(os.environ.get('PORT', 5001))
 SECRET_KEY = os.environ.get('SECRET_KEY', 'gestor_gastos_pareja_2024_secret')
 # En Railway, si DATA_DIR no está en env vars, usa /data (ruta del volumen por defecto)
 _default_data_dir = '/data' if IS_CLOUD else os.path.dirname(os.path.abspath(__file__))
-DATA_DIR   = os.environ.get('DATA_DIR', _default_data_dir)
+DATA_DIR   = os.environ.get('DATA_DIR', _default_data_dir).strip()
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
+os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, 'gastos.db')
+print(f'[config] DATA_DIR={DATA_DIR!r} DB_PATH={DB_PATH!r}')
 
 NOMBRES_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
