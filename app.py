@@ -422,6 +422,258 @@ def api_tunnel():
     return jsonify({'url': TUNNEL_URL, 'status': TUNNEL_STATUS})
 
 
+# ── API JSON para Flutter ─────────────────────────────────────────────────────
+
+@app.route('/api/usuarios')
+def api_usuarios():
+    conn = get_db()
+    rows = conn.execute("SELECT id, nombre, color, emoji, foto FROM usuarios").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/categorias')
+def api_categorias():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM categorias_gasto WHERE activa=1 ORDER BY nombre").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/gastos')
+def api_gastos():
+    mes = request.args.get('mes', date.today().month, type=int)
+    anio = request.args.get('anio', date.today().year, type=int)
+    mes_str = f"{anio}-{mes:02d}"
+    auto_generar_mes(mes_str)
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT g.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji,
+               c.nombre as cnombre, c.color as ccolor, c.icono as cicono
+        FROM gastos g
+        LEFT JOIN usuarios u ON g.usuario_id=u.id
+        LEFT JOIN categorias_gasto c ON g.categoria_id=c.id
+        WHERE strftime('%Y-%m', g.fecha)=?
+        ORDER BY g.fecha DESC, g.created_at DESC
+    """, (mes_str,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/gastos', methods=['POST'])
+def api_gasto_crear():
+    d = request.get_json()
+    conn = get_db()
+    cur = conn.execute("""INSERT INTO gastos
+        (usuario_id, categoria_id, descripcion, importe, fecha, es_fijo, notas)
+        VALUES(?,?,?,?,?,?,?)""", (
+        d.get('usuario_id'), d.get('categoria_id'),
+        d.get('descripcion', '').strip(),
+        float(d.get('importe', 0)),
+        d.get('fecha'), 1 if d.get('es_fijo') else 0,
+        d.get('notas', '').strip()
+    ))
+    conn.commit()
+    gid = cur.lastrowid
+    conn.close()
+    return jsonify({'id': gid}), 201
+
+@app.route('/api/gastos/<int:gid>', methods=['PUT'])
+def api_gasto_editar(gid):
+    d = request.get_json()
+    conn = get_db()
+    conn.execute("""UPDATE gastos SET usuario_id=?, categoria_id=?, descripcion=?,
+        importe=?, fecha=?, es_fijo=?, notas=? WHERE id=?""", (
+        d.get('usuario_id'), d.get('categoria_id'),
+        d.get('descripcion', '').strip(),
+        float(d.get('importe', 0)),
+        d.get('fecha'), 1 if d.get('es_fijo') else 0,
+        d.get('notas', '').strip(), gid
+    ))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/gastos/<int:gid>', methods=['DELETE'])
+def api_gasto_eliminar(gid):
+    conn = get_db()
+    conn.execute("DELETE FROM gastos WHERE id=?", (gid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/ingresos')
+def api_ingresos():
+    mes = request.args.get('mes', date.today().month, type=int)
+    anio = request.args.get('anio', date.today().year, type=int)
+    mes_str = f"{anio}-{mes:02d}"
+    auto_generar_mes(mes_str)
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT i.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji
+        FROM ingresos i
+        LEFT JOIN usuarios u ON i.usuario_id=u.id
+        WHERE strftime('%Y-%m', i.fecha)=?
+        ORDER BY i.fecha DESC, i.created_at DESC
+    """, (mes_str,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/ingresos', methods=['POST'])
+def api_ingreso_crear():
+    d = request.get_json()
+    conn = get_db()
+    cur = conn.execute("""INSERT INTO ingresos
+        (usuario_id, descripcion, importe, fecha, es_nomina, notas)
+        VALUES(?,?,?,?,?,?)""", (
+        d.get('usuario_id'),
+        d.get('descripcion', '').strip(),
+        float(d.get('importe', 0)),
+        d.get('fecha'), 1 if d.get('es_nomina') else 0,
+        d.get('notas', '').strip()
+    ))
+    conn.commit()
+    iid = cur.lastrowid
+    conn.close()
+    return jsonify({'id': iid}), 201
+
+@app.route('/api/ingresos/<int:iid>', methods=['PUT'])
+def api_ingreso_editar(iid):
+    d = request.get_json()
+    conn = get_db()
+    conn.execute("""UPDATE ingresos SET usuario_id=?, descripcion=?,
+        importe=?, fecha=?, es_nomina=?, notas=? WHERE id=?""", (
+        d.get('usuario_id'),
+        d.get('descripcion', '').strip(),
+        float(d.get('importe', 0)),
+        d.get('fecha'), 1 if d.get('es_nomina') else 0,
+        d.get('notas', '').strip(), iid
+    ))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/ingresos/<int:iid>', methods=['DELETE'])
+def api_ingreso_eliminar(iid):
+    conn = get_db()
+    conn.execute("DELETE FROM ingresos WHERE id=?", (iid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/dashboard')
+def api_dashboard():
+    mes = request.args.get('mes', date.today().month, type=int)
+    anio = request.args.get('anio', date.today().year, type=int)
+    mes_str = f"{anio}-{mes:02d}"
+    auto_generar_mes(mes_str)
+    conn = get_db()
+
+    total_gastos = conn.execute(
+        "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?", (mes_str,)
+    ).fetchone()['t']
+    total_ingresos = conn.execute(
+        "SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (mes_str,)
+    ).fetchone()['t']
+    gastos_fijos = conn.execute(
+        "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE es_fijo=1 AND strftime('%Y-%m',fecha)=?", (mes_str,)
+    ).fetchone()['t']
+
+    gastos_cat = [dict(r) for r in conn.execute("""
+        SELECT c.nombre, c.color, c.icono, COALESCE(SUM(g.importe),0) as total
+        FROM categorias_gasto c
+        LEFT JOIN gastos g ON g.categoria_id=c.id AND strftime('%Y-%m',g.fecha)=?
+        WHERE c.activa=1 GROUP BY c.id HAVING total > 0 ORDER BY total DESC
+    """, (mes_str,)).fetchall()]
+
+    evolucion = []
+    for i in range(5, -1, -1):
+        m = mes - i
+        a = anio
+        while m <= 0: m += 12; a -= 1
+        ms = f"{a}-{m:02d}"
+        g = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
+        inc = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
+        evolucion.append({'label': NOMBRES_MESES[m-1][:3], 'gastos': round(g,2), 'ingresos': round(inc,2)})
+
+    ultimos = [dict(r) for r in conn.execute("""
+        SELECT g.id, g.descripcion, g.importe, g.fecha, g.es_fijo,
+               u.nombre as unombre, u.color as ucolor,
+               c.nombre as cnombre, c.color as ccolor, c.icono as cicono
+        FROM gastos g
+        LEFT JOIN usuarios u ON g.usuario_id=u.id
+        LEFT JOIN categorias_gasto c ON g.categoria_id=c.id
+        WHERE strftime('%Y-%m',g.fecha)=?
+        ORDER BY g.fecha DESC, g.created_at DESC LIMIT 6
+    """, (mes_str,)).fetchall()]
+
+    conn.close()
+    return jsonify({
+        'mes': mes, 'anio': anio, 'mes_str': mes_str,
+        'nombre_mes': NOMBRES_MESES[mes-1],
+        'total_gastos': total_gastos,
+        'total_ingresos': total_ingresos,
+        'balance': total_ingresos - total_gastos,
+        'gastos_fijos': gastos_fijos,
+        'gastos_variables': total_gastos - gastos_fijos,
+        'gastos_categoria': gastos_cat,
+        'evolucion': evolucion,
+        'ultimos_gastos': ultimos,
+    })
+
+@app.route('/api/metas')
+def api_metas():
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT *, ROUND(importe_actual*100.0/NULLIF(importe_objetivo,0),1) as progreso
+        FROM metas_ahorro ORDER BY completada ASC, fecha_limite ASC
+    """).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/metas', methods=['POST'])
+def api_meta_crear():
+    d = request.get_json()
+    conn = get_db()
+    cur = conn.execute("""INSERT INTO metas_ahorro
+        (nombre, descripcion, importe_objetivo, fecha_limite, color)
+        VALUES(?,?,?,?,?)""", (
+        d.get('nombre','').strip(), d.get('descripcion','').strip(),
+        float(d.get('importe_objetivo',0)),
+        d.get('fecha_limite') or None, d.get('color','#4f8ef7')
+    ))
+    conn.commit()
+    mid = cur.lastrowid
+    conn.close()
+    return jsonify({'id': mid}), 201
+
+@app.route('/api/metas/<int:mid>/abonar', methods=['POST'])
+def api_meta_abonar(mid):
+    d = request.get_json()
+    importe = float(d.get('importe', 0))
+    conn = get_db()
+    meta = conn.execute("SELECT * FROM metas_ahorro WHERE id=?", (mid,)).fetchone()
+    conn.execute("""INSERT INTO aportaciones_meta (meta_id, usuario_id, importe, fecha, notas)
+        VALUES(?,?,?,?,?)""", (mid, d.get('usuario_id'), importe, d.get('fecha'), d.get('notas','')))
+    nuevo_total = meta['importe_actual'] + importe
+    completada = 1 if nuevo_total >= meta['importe_objetivo'] else 0
+    conn.execute("UPDATE metas_ahorro SET importe_actual=?, completada=? WHERE id=?",
+                 (nuevo_total, completada, mid))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'completada': bool(completada)})
+
+@app.route('/api/resumen')
+def api_resumen():
+    anio = request.args.get('anio', date.today().year, type=int)
+    conn = get_db()
+    meses = []
+    for m in range(1, 13):
+        ms = f"{anio}-{m:02d}"
+        g = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
+        inc = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
+        meses.append({'mes': NOMBRES_MESES[m-1], 'mes_num': m, 'gastos': g, 'ingresos': inc, 'balance': inc-g})
+    conn.close()
+    return jsonify({'anio': anio, 'meses': meses})
+
+
 # ── INICIO / USUARIO ─────────────────────────────────────────
 @app.route('/')
 def index():
