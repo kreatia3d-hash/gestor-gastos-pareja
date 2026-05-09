@@ -11,7 +11,9 @@ import json
 IS_CLOUD   = os.environ.get('CLOUD_MODE', '') == '1'
 PORT       = int(os.environ.get('PORT', 5001))
 SECRET_KEY = os.environ.get('SECRET_KEY', 'gestor_gastos_pareja_2024_secret')
-DATA_DIR   = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
+# En Railway, si DATA_DIR no está en env vars, usa /data (ruta del volumen por defecto)
+_default_data_dir = '/data' if IS_CLOUD else os.path.dirname(os.path.abspath(__file__))
+DATA_DIR   = os.environ.get('DATA_DIR', _default_data_dir)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
