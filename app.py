@@ -1831,7 +1831,7 @@ def configuracion():
     return render_template('configuracion.html', usuarios=usuarios, categorias=categorias)
 
 
-# ── VERA — Análisis IA ────────────────────────────────────────────────────────
+# ── VERA — IA (análisis + chat) ──────────────────────────────────────────────
 
 try:
     import anthropic as _anthropic
@@ -1942,6 +1942,72 @@ Sé directa, usa números reales, y mantén un tono cercano pero profesional. M�
             'balance': balance,
         }
     })
+
+
+@app.route('/api/ia/chat', methods=['POST'])
+def api_ia_chat():
+    d = request.get_json()
+    mensaje   = d.get('mensaje', '').strip()
+    uid       = d.get('usuario_id')
+    mes       = int(d.get('mes',  date.today().month))
+    anio      = int(d.get('anio', date.today().year))
+    historial = d.get('historial', [])  # [{rol, texto}]
+
+    if not _ANTHROPIC_CLIENT or not os.environ.get('ANTHROPIC_API_KEY'):
+        return jsonify({'error': 'IA no configurada'}), 503
+
+    mes_str = f"{anio}-{mes:02d}"
+    conn = get_db()
+
+    cats = [dict(r) for r in conn.execute(
+        "SELECT id, nombre FROM categorias_gasto WHERE activa=1 ORDER BY nombre").fetchall()]
+    total_g  = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?",   (mes_str,)).fetchone()['t']
+    total_i  = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (mes_str,)).fetchone()['t']
+    u_row    = conn.execute("SELECT nombre FROM usuarios WHERE id=?", (uid,)).fetchone()
+    u_nombre = u_row['nombre'] if u_row else 'usuario'
+    conn.close()
+
+    cats_txt = '\n'.join(f"  id={c['id']}: {c['nombre']}" for c in cats)
+
+    system_prompt = f"""Eres Vera, la asistente financiera de Nido by Kreatia. Hablas con {u_nombre}.
+Eres directa, cercana, sin rodeos pero con cariño. Respuestas cortas y útiles.
+
+FINANZAS DE {NOMBRES_MESES[mes-1].upper()} {anio}:
+- Gastos: {total_g:.2f}€  |  Ingresos: {total_i:.2f}€  |  Balance: {total_i-total_g:+.2f}€
+
+CATEGORÍAS (usa el id exacto):
+{cats_txt}
+
+REGLA CRÍTICA: Responde SIEMPRE con JSON válido y NADA más. Estructura:
+{{"respuesta": "texto para el usuario", "accion": null}}
+
+Si el usuario quiere registrar un GASTO (compra, pago, factura…):
+{{"respuesta": "texto breve confirmando", "accion": {{"tipo": "gasto", "descripcion": "descripción corta", "importe": 30.0, "categoria_id": 5, "es_fijo": false}}}}
+
+Si el usuario quiere registrar un INGRESO (le han pagado, cobrado, recibido…):
+{{"respuesta": "texto breve confirmando", "accion": {{"tipo": "ingreso", "descripcion": "descripción corta", "importe": 20.0, "es_nomina": false}}}}
+
+Elige la categoria_id más apropiada. Importe siempre número decimal sin €.
+Si el usuario no menciona importe, pregúntale. No inventes importes."""
+
+    messages = [{'role': h['rol'], 'content': h['texto']} for h in historial[-12:]]
+    messages.append({'role': 'user', 'content': mensaje})
+
+    try:
+        msg = _ANTHROPIC_CLIENT.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=400,
+            system=system_prompt,
+            messages=messages,
+        )
+        raw = msg.content[0].text.strip()
+        import json as _json
+        start = raw.find('{'); end = raw.rfind('}') + 1
+        data = _json.loads(raw[start:end]) if start >= 0 and end > start else {'respuesta': raw, 'accion': None}
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify(data)
 
 
 if __name__ == '__main__':
