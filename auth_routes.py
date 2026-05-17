@@ -2,11 +2,12 @@
 Auth layer para Nido – Google (Firebase) Sign-In + JWT propio.
 Todas las rutas nuevas de auth, nido e invitaciones van aquí.
 """
-import os, uuid, json, sqlite3, random
+import os, uuid, json, random
 from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, request, jsonify, render_template, current_app, g
+import db as _db
 
 try:
     import jwt as pyjwt
@@ -26,11 +27,8 @@ BASE_URL            = os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'web-production-26
 # ── Helpers DB ────────────────────────────────────────────────────────────────
 
 def _get_db():
-    db_path = current_app.config['DB_PATH']
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON')
-    return conn
+    _db.set_db_path(current_app.config['DB_PATH'])
+    return _db.get_db()
 
 
 # ── Firebase token verification ───────────────────────────────────────────────

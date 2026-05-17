@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-import sqlite3
 import os
 from datetime import datetime, date
 import threading
 import re
 import time
 import json
+import db as _db
 
 # ── Configuración según entorno ───────────────────────────────────────────────
 IS_CLOUD   = os.environ.get('CLOUD_MODE', '') == '1'
@@ -21,6 +21,7 @@ app.secret_key = SECRET_KEY
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, 'gastos.db')
 app.config['DB_PATH'] = DB_PATH
+_db.set_db_path(DB_PATH)
 
 # ── Auth layer (Google Sign-In + JWT) ─────────────────────────────────────────
 from auth_routes import auth_bp, get_nido_id_from_request
@@ -78,10 +79,7 @@ if not IS_CLOUD:
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    return _db.get_db()
 
 @app.context_processor
 def inject_globals():
@@ -90,8 +88,9 @@ def inject_globals():
 
 BACKUP_PATH = os.path.join(DATA_DIR, 'backup_datos.json')
 
+
 def guardar_backup():
-    """Guarda un JSON con todos los datos. Se llama al arrancar y por endpoint."""
+    """Exporta todos los datos a JSON (para GDPR y recuperación manual)."""
     try:
         conn = get_db()
         data = {
@@ -104,66 +103,201 @@ def guardar_backup():
             'backup_at':   datetime.now().isoformat(),
         }
         conn.close()
-        with open(BACKUP_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        print(f'[backup] Guardado en {BACKUP_PATH}')
+        if not _db.DATABASE_URL:
+            with open(BACKUP_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        return data
     except Exception as e:
-        print(f'[backup] Error al guardar: {e}')
+        print(f'[backup] Error: {e}')
+        return {}
 
-SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'initial_data.json')
 
 def restaurar_desde_backup():
-    """Si la BD está vacía, intenta restaurar: 1) backup en volumen, 2) seed del repo."""
+    """Solo para SQLite local: restaura datos desde el backup JSON si la BD está vacía."""
+    if _db.DATABASE_URL:
+        return  # PostgreSQL persiste por sí solo
     try:
         conn = get_db()
         cnt = conn.execute('SELECT COUNT(*) as c FROM usuarios').fetchone()['c']
         conn.close()
         if cnt > 0:
-            return  # Hay datos, no restaurar
-        # 1. Backup en volumen persistente
-        if os.path.exists(BACKUP_PATH):
-            source = BACKUP_PATH
-        # 2. Seed embebido en el repo (fallback cuando no hay volumen)
-        elif os.path.exists(SEED_PATH):
-            source = SEED_PATH
-        else:
             return
-        print(f'[backup] Base de datos vacía. Restaurando desde {source}...')
+        SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'initial_data.json')
+        source = BACKUP_PATH if os.path.exists(BACKUP_PATH) else (SEED_PATH if os.path.exists(SEED_PATH) else None)
+        if not source:
+            return
         with open(source, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        conn = get_db()
-        conn.execute("PRAGMA foreign_keys = OFF")
+        import sqlite3 as _sq
+        conn2 = _sq.connect(DB_PATH)
+        conn2.row_factory = _sq.Row
+        conn2.execute("PRAGMA foreign_keys = OFF")
         for u in data.get('usuarios', []):
-            conn.execute("INSERT OR REPLACE INTO usuarios (id,nombre,color,emoji,pin,foto) VALUES(?,?,?,?,?,?)",
+            conn2.execute("INSERT OR REPLACE INTO usuarios (id,nombre,color,emoji,pin,foto) VALUES(?,?,?,?,?,?)",
                 (u['id'],u['nombre'],u['color'],u.get('emoji','person'),u.get('pin'),u.get('foto')))
         for c in data.get('categorias', []):
-            conn.execute("INSERT OR REPLACE INTO categorias_gasto (id,nombre,color,icono,activa,es_ahorro) VALUES(?,?,?,?,?,?)",
+            conn2.execute("INSERT OR REPLACE INTO categorias_gasto (id,nombre,color,icono,activa,es_ahorro) VALUES(?,?,?,?,?,?)",
                 (c['id'],c['nombre'],c['color'],c.get('icono','bi-tag'),c.get('activa',1),c.get('es_ahorro',0)))
         for g in data.get('gastos', []):
-            conn.execute("INSERT OR REPLACE INTO gastos (id,usuario_id,categoria_id,descripcion,importe,fecha,es_fijo,notas,meta_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            conn2.execute("INSERT OR REPLACE INTO gastos (id,usuario_id,categoria_id,descripcion,importe,fecha,es_fijo,notas,meta_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (g['id'],g.get('usuario_id'),g.get('categoria_id'),g['descripcion'],g['importe'],g['fecha'],g.get('es_fijo',0),g.get('notas'),g.get('meta_id'),g.get('created_at')))
         for i in data.get('ingresos', []):
-            conn.execute("INSERT OR REPLACE INTO ingresos (id,usuario_id,descripcion,importe,fecha,es_nomina,notas,created_at) VALUES(?,?,?,?,?,?,?,?)",
+            conn2.execute("INSERT OR REPLACE INTO ingresos (id,usuario_id,descripcion,importe,fecha,es_nomina,notas,created_at) VALUES(?,?,?,?,?,?,?,?)",
                 (i['id'],i.get('usuario_id'),i['descripcion'],i['importe'],i['fecha'],i.get('es_nomina',0),i.get('notas'),i.get('created_at')))
         for m in data.get('metas', []):
-            conn.execute("INSERT OR REPLACE INTO metas_ahorro (id,nombre,descripcion,importe_objetivo,importe_actual,fecha_limite,completada,color,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            conn2.execute("INSERT OR REPLACE INTO metas_ahorro (id,nombre,descripcion,importe_objetivo,importe_actual,fecha_limite,completada,color,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
                 (m['id'],m['nombre'],m.get('descripcion'),m['importe_objetivo'],m.get('importe_actual',0),m.get('fecha_limite'),m.get('completada',0),m.get('color','#4f8ef7'),m.get('created_at')))
-        for a in data.get('aportaciones', []):
-            conn.execute("INSERT OR REPLACE INTO aportaciones_meta (id,meta_id,usuario_id,importe,fecha,notas,gasto_id) VALUES(?,?,?,?,?,?,?)",
-                (a['id'],a['meta_id'],a.get('usuario_id'),a['importe'],a['fecha'],a.get('notas'),a.get('gasto_id')))
-        for p in data.get('presupuestos', []):
-            conn.execute("INSERT OR REPLACE INTO presupuestos (id,categoria_id,importe_mensual,mes,anio) VALUES(?,?,?,?,?)",
-                (p['id'],p['categoria_id'],p['importe_mensual'],p.get('mes',0),p.get('anio',0)))
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.commit()
-        conn.close()
-        print(f'[backup] Restauración completada desde {BACKUP_PATH}')
+        conn2.execute("PRAGMA foreign_keys = ON")
+        conn2.commit()
+        conn2.close()
     except Exception as e:
         print(f'[backup] Error al restaurar: {e}')
 
 
 def init_db():
+    if _db.DATABASE_URL:
+        _init_db_pg()
+    else:
+        _init_db_sqlite()
+
+
+def _init_db_pg():
+    """Crea el schema en PostgreSQL (Railway/producción)."""
     conn = get_db()
+    c = conn.cursor()
+
+    ddl_statements = [
+        '''CREATE TABLE IF NOT EXISTS nidos (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL DEFAULT 'Mi Nido',
+            plan TEXT DEFAULT 'free',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS usuarios (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            color TEXT DEFAULT '#4f8ef7',
+            emoji TEXT DEFAULT 'person',
+            pin TEXT,
+            foto TEXT,
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id)
+        )''',
+        '''CREATE TABLE IF NOT EXISTS firebase_users (
+            id SERIAL PRIMARY KEY,
+            firebase_uid TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
+            nombre TEXT,
+            foto TEXT,
+            nido_id INTEGER REFERENCES nidos(id),
+            usuario_id INTEGER REFERENCES usuarios(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS invitaciones (
+            id SERIAL PRIMARY KEY,
+            nido_id INTEGER NOT NULL REFERENCES nidos(id),
+            creada_por INTEGER,
+            token TEXT UNIQUE NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            estado TEXT DEFAULT 'pendiente',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS categorias_gasto (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            color TEXT DEFAULT '#6c757d',
+            icono TEXT DEFAULT 'bi-tag',
+            activa INTEGER DEFAULT 1,
+            es_ahorro INTEGER DEFAULT 0,
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id)
+        )''',
+        '''CREATE TABLE IF NOT EXISTS gastos (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER REFERENCES usuarios(id),
+            categoria_id INTEGER REFERENCES categorias_gasto(id),
+            descripcion TEXT NOT NULL,
+            importe REAL NOT NULL,
+            fecha TEXT NOT NULL,
+            es_fijo INTEGER DEFAULT 0,
+            notas TEXT,
+            meta_id INTEGER,
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS ingresos (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER REFERENCES usuarios(id),
+            descripcion TEXT NOT NULL,
+            importe REAL NOT NULL,
+            fecha TEXT NOT NULL,
+            es_nomina INTEGER DEFAULT 0,
+            notas TEXT,
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS metas_ahorro (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            importe_objetivo REAL NOT NULL,
+            importe_actual REAL DEFAULT 0,
+            fecha_limite TEXT,
+            completada INTEGER DEFAULT 0,
+            color TEXT DEFAULT '#4f8ef7',
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS aportaciones_meta (
+            id SERIAL PRIMARY KEY,
+            meta_id INTEGER REFERENCES metas_ahorro(id),
+            usuario_id INTEGER REFERENCES usuarios(id),
+            importe REAL NOT NULL,
+            fecha TEXT NOT NULL,
+            notas TEXT,
+            gasto_id INTEGER
+        )''',
+        '''CREATE TABLE IF NOT EXISTS presupuestos (
+            id SERIAL PRIMARY KEY,
+            categoria_id INTEGER NOT NULL REFERENCES categorias_gasto(id),
+            importe_mensual REAL NOT NULL,
+            mes INTEGER NOT NULL DEFAULT 0,
+            anio INTEGER NOT NULL DEFAULT 0,
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id)
+        )''',
+        '''CREATE TABLE IF NOT EXISTS notificaciones (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            titulo TEXT NOT NULL,
+            cuerpo TEXT NOT NULL,
+            leida INTEGER DEFAULT 0,
+            nido_id INTEGER DEFAULT 1 REFERENCES nidos(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        '''CREATE TABLE IF NOT EXISTS config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )''',
+    ]
+
+    for stmt in ddl_statements:
+        c.execute(stmt)
+
+    conn.commit()
+
+    # Nido por defecto y sincronizar secuencia
+    conn.execute("INSERT INTO nidos (id, nombre) VALUES (1, 'Mi Nido') ON CONFLICT (id) DO NOTHING")
+    conn.execute("SELECT setval(pg_get_serial_sequence('nidos','id'), GREATEST((SELECT MAX(id) FROM nidos), 1))")
+    conn.commit()
+
+    _seed_default_data()
+    conn.close()
+
+
+def _init_db_sqlite():
+    """Crea el schema en SQLite (desarrollo local)."""
+    import sqlite3 as _sqlite3
+    conn = _sqlite3.connect(DB_PATH)
+    conn.row_factory = _sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     c = conn.cursor()
 
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
@@ -173,7 +307,6 @@ def init_db():
         emoji TEXT DEFAULT "person",
         pin TEXT
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS categorias_gasto (
         id INTEGER PRIMARY KEY,
         nombre TEXT NOT NULL,
@@ -182,7 +315,6 @@ def init_db():
         activa INTEGER DEFAULT 1,
         es_ahorro INTEGER DEFAULT 0
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS gastos (
         id INTEGER PRIMARY KEY,
         usuario_id INTEGER,
@@ -197,7 +329,6 @@ def init_db():
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
         FOREIGN KEY (categoria_id) REFERENCES categorias_gasto(id)
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS ingresos (
         id INTEGER PRIMARY KEY,
         usuario_id INTEGER,
@@ -209,7 +340,6 @@ def init_db():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS metas_ahorro (
         id INTEGER PRIMARY KEY,
         nombre TEXT NOT NULL,
@@ -221,7 +351,6 @@ def init_db():
         color TEXT DEFAULT "#4f8ef7",
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS aportaciones_meta (
         id INTEGER PRIMARY KEY,
         meta_id INTEGER,
@@ -229,41 +358,28 @@ def init_db():
         importe REAL NOT NULL,
         fecha TEXT NOT NULL,
         notas TEXT,
-        gasto_id INTEGER,
-        FOREIGN KEY (meta_id) REFERENCES metas_ahorro(id),
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        gasto_id INTEGER
     )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS config (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )''')
-
+    c.execute('''CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS notificaciones (
         id INTEGER PRIMARY KEY,
         usuario_id INTEGER NOT NULL,
         titulo TEXT NOT NULL,
         cuerpo TEXT NOT NULL,
         leida INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
         id INTEGER PRIMARY KEY,
         categoria_id INTEGER NOT NULL UNIQUE,
-        importe_mensual REAL NOT NULL,
-        FOREIGN KEY (categoria_id) REFERENCES categorias_gasto(id)
+        importe_mensual REAL NOT NULL
     )''')
-
-    # ── Tablas multi-tenant (nidos, auth) ────────────────────────────────────
     c.execute('''CREATE TABLE IF NOT EXISTS nidos (
         id INTEGER PRIMARY KEY,
         nombre TEXT NOT NULL DEFAULT "Mi Nido",
         plan TEXT DEFAULT "free",
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS firebase_users (
         id INTEGER PRIMARY KEY,
         firebase_uid TEXT UNIQUE NOT NULL,
@@ -272,11 +388,8 @@ def init_db():
         foto TEXT,
         nido_id INTEGER,
         usuario_id INTEGER,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (nido_id) REFERENCES nidos(id),
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS invitaciones (
         id INTEGER PRIMARY KEY,
         nido_id INTEGER NOT NULL,
@@ -284,14 +397,11 @@ def init_db():
         token TEXT UNIQUE NOT NULL,
         expires_at TEXT NOT NULL,
         estado TEXT DEFAULT "pendiente",
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (nido_id) REFERENCES nidos(id)
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # Nido por defecto (para datos existentes)
     c.execute("INSERT OR IGNORE INTO nidos (id, nombre) VALUES (1, 'Mi Nido')")
 
-    # Migraciones para bases de datos existentes
     for migration in [
         "ALTER TABLE usuarios ADD COLUMN pin TEXT",
         "ALTER TABLE usuarios ADD COLUMN foto TEXT",
@@ -313,52 +423,53 @@ def init_db():
         except Exception:
             pass
 
-    # Migrar presupuestos globales (mes=0, anio=0) al mes actual
     hoy_mig = date.today()
     c.execute("UPDATE presupuestos SET mes=?, anio=? WHERE mes=0 AND anio=0",
               (hoy_mig.month, hoy_mig.year))
-
     conn.commit()
     conn.close()
 
-    # Intentar restaurar desde backup ANTES de insertar datos por defecto
     restaurar_desde_backup()
+    _seed_default_data()
 
-    # Solo insertar datos por defecto si la BD sigue vacía (sin backup)
-    conn2 = get_db()
-    c2 = conn2.cursor()
 
-    c2.execute("SELECT COUNT(*) as cnt FROM usuarios")
-    if c2.fetchone()['cnt'] == 0:
-        c2.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)", ('Persona 1', '#4f8ef7', 'person'))
-        c2.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)", ('Persona 2', '#e74c8e', 'person-fill'))
+def _seed_default_data():
+    """Inserta usuarios y categorías por defecto si la BD está vacía."""
+    conn = get_db()
+    cnt = conn.execute("SELECT COUNT(*) as cnt FROM usuarios").fetchone()['cnt']
+    if cnt == 0:
+        conn.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)",
+                     ('Persona 1', '#4f8ef7', 'person'))
+        conn.execute("INSERT INTO usuarios (nombre, color, emoji) VALUES (?, ?, ?)",
+                     ('Persona 2', '#e74c8e', 'person-fill'))
 
-    c2.execute("SELECT COUNT(*) as cnt FROM categorias_gasto")
-    if c2.fetchone()['cnt'] == 0:
+    cnt_cats = conn.execute("SELECT COUNT(*) as cnt FROM categorias_gasto").fetchone()['cnt']
+    if cnt_cats == 0:
         cats = [
             ('Alimentacion', '#28a745', 'bi-basket2', 0),
-            ('Ocio', '#ffc107', 'bi-controller', 0),
-            ('Coche', '#dc3545', 'bi-car-front', 0),
-            ('Servicios', '#17a2b8', 'bi-house', 0),
-            ('Salud', '#e83e8c', 'bi-heart-pulse', 0),
-            ('Ropa', '#6f42c1', 'bi-bag', 0),
-            ('Viajes', '#fd7e14', 'bi-airplane', 0),
-            ('Suscripciones', '#20c997', 'bi-phone', 0),
-            ('Ahorro', '#0d6efd', 'bi-piggy-bank', 1),
-            ('Otros', '#6c757d', 'bi-tres-dots', 0),
+            ('Ocio',         '#ffc107', 'bi-controller', 0),
+            ('Coche',        '#dc3545', 'bi-car-front', 0),
+            ('Servicios',    '#17a2b8', 'bi-house', 0),
+            ('Salud',        '#e83e8c', 'bi-heart-pulse', 0),
+            ('Ropa',         '#6f42c1', 'bi-bag', 0),
+            ('Viajes',       '#fd7e14', 'bi-airplane', 0),
+            ('Suscripciones','#20c997', 'bi-phone', 0),
+            ('Ahorro',       '#0d6efd', 'bi-piggy-bank', 1),
+            ('Otros',        '#6c757d', 'bi-tres-dots', 0),
         ]
         for cat in cats:
-            c2.execute("INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, ?)", cat)
+            conn.execute(
+                "INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, ?)",
+                cat)
     else:
-        c2.execute("SELECT id FROM categorias_gasto WHERE es_ahorro=1")
-        if not c2.fetchone():
-            c2.execute("INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, 1)",
-                       ('Ahorro', '#0d6efd', 'bi-piggy-bank'))
+        row = conn.execute("SELECT id FROM categorias_gasto WHERE es_ahorro=1").fetchone()
+        if not row:
+            conn.execute(
+                "INSERT INTO categorias_gasto (nombre, color, icono, es_ahorro) VALUES (?, ?, ?, 1)",
+                ('Ahorro', '#0d6efd', 'bi-piggy-bank'))
 
-    conn2.commit()
-    conn2.close()
-
-    # Guardar backup actualizado
+    conn.commit()
+    conn.close()
     guardar_backup()
 
 
@@ -2111,6 +2222,98 @@ Si el usuario no menciona importe, pregúntale. No inventes importes."""
         return jsonify({'error': str(e)}), 500
 
     return jsonify(data)
+
+
+# ── GDPR — Exportar y eliminar datos ─────────────────────────────────────────
+
+@app.route('/api/mis-datos')
+def api_mis_datos():
+    """Exporta todos los datos del nido actual en JSON (GDPR)."""
+    nid = _nido()
+    conn = get_db()
+    data = {
+        'exportado_en': datetime.now().isoformat(),
+        'gastos':   [dict(r) for r in conn.execute(
+            "SELECT * FROM gastos WHERE nido_id=? ORDER BY fecha", (nid,)).fetchall()],
+        'ingresos': [dict(r) for r in conn.execute(
+            "SELECT * FROM ingresos WHERE nido_id=? ORDER BY fecha", (nid,)).fetchall()],
+        'metas':    [dict(r) for r in conn.execute(
+            "SELECT * FROM metas_ahorro WHERE nido_id=? ORDER BY created_at", (nid,)).fetchall()],
+        'presupuestos': [dict(r) for r in conn.execute(
+            "SELECT * FROM presupuestos WHERE nido_id=?", (nid,)).fetchall()],
+        'categorias': [dict(r) for r in conn.execute(
+            "SELECT * FROM categorias_gasto WHERE nido_id=?", (nid,)).fetchall()],
+    }
+    conn.close()
+    return jsonify(data)
+
+
+@app.route('/api/eliminar-cuenta', methods=['POST'])
+def api_eliminar_cuenta():
+    """Elimina permanentemente todos los datos del usuario autenticado (GDPR)."""
+    from auth_routes import get_nido_id_from_request
+    d = request.get_json() or {}
+    confirmacion = d.get('confirmar', '')
+    if confirmacion != 'ELIMINAR':
+        return jsonify({'error': 'Confirmación incorrecta'}), 400
+
+    firebase_uid = d.get('firebase_uid', '')
+    if not firebase_uid:
+        return jsonify({'error': 'firebase_uid requerido'}), 400
+
+    conn = get_db()
+    fuser = conn.execute(
+        "SELECT * FROM firebase_users WHERE firebase_uid=?", (firebase_uid,)
+    ).fetchone()
+    if not fuser:
+        conn.close()
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    nid     = fuser['nido_id']
+    uid_usr = fuser['usuario_id']
+
+    # Comprobar si es el único miembro del nido
+    otros = conn.execute(
+        "SELECT COUNT(*) as c FROM firebase_users WHERE nido_id=? AND firebase_uid!=?",
+        (nid, firebase_uid)
+    ).fetchone()['c']
+
+    if otros == 0:
+        # Único miembro → eliminar el nido completo
+        conn.execute("DELETE FROM aportaciones_meta WHERE meta_id IN (SELECT id FROM metas_ahorro WHERE nido_id=?)", (nid,))
+        conn.execute("DELETE FROM gastos WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM ingresos WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM metas_ahorro WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM presupuestos WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM categorias_gasto WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM notificaciones WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM invitaciones WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM firebase_users WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM usuarios WHERE nido_id=?", (nid,))
+        conn.execute("DELETE FROM nidos WHERE id=?", (nid,))
+    else:
+        # Hay otro miembro → solo eliminar este usuario
+        conn.execute("DELETE FROM firebase_users WHERE firebase_uid=?", (firebase_uid,))
+        conn.execute("UPDATE gastos SET usuario_id=NULL WHERE usuario_id=?", (uid_usr,))
+        conn.execute("UPDATE ingresos SET usuario_id=NULL WHERE usuario_id=?", (uid_usr,))
+        conn.execute("DELETE FROM notificaciones WHERE usuario_id=?", (uid_usr,))
+        conn.execute("DELETE FROM usuarios WHERE id=?", (uid_usr,))
+
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'mensaje': 'Cuenta eliminada correctamente.'})
+
+
+# ── Páginas legales ───────────────────────────────────────────────────────────
+
+@app.route('/politica-privacidad')
+def politica_privacidad():
+    return render_template('politica_privacidad.html')
+
+
+@app.route('/terminos')
+def terminos():
+    return render_template('terminos.html')
 
 
 if __name__ == '__main__':
