@@ -37,36 +37,34 @@ def _get_db():
 
 def _verify_firebase_token(id_token: str):
     """Verifica un Firebase ID Token usando el endpoint accounts:lookup de Google.
-    Requiere FIREBASE_WEB_API_KEY sin restricciones de plataforma."""
+    Requiere FIREBASE_WEB_API_KEY sin restricciones de plataforma.
+    Devuelve dict con info del usuario, o lanza excepción con mensaje de error."""
     if not _DEPS_OK:
-        return None
+        raise ValueError('PyJWT/requests no instalado')
     if not FIREBASE_WEB_API_KEY:
-        print('[auth] FIREBASE_WEB_API_KEY no configurado')
-        return None
-    try:
-        resp = _req.post(
-            f'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={FIREBASE_WEB_API_KEY}',
-            json={'idToken': id_token},
-            timeout=8,
-        )
-        if resp.status_code != 200:
-            print(f'[auth] accounts:lookup error {resp.status_code}: {resp.text}')
-            return None
-        data = resp.json()
-        users = data.get('users', [])
-        if not users:
-            print('[auth] accounts:lookup: lista de usuarios vacía')
-            return None
-        u = users[0]
-        return {
-            'uid':    u.get('localId', ''),
-            'email':  u.get('email', ''),
-            'nombre': u.get('displayName', ''),
-            'foto':   u.get('photoUrl', ''),
-        }
-    except Exception as e:
-        print(f'[auth] Firebase verify error: {e}')
-        return None
+        raise ValueError('FIREBASE_WEB_API_KEY no configurado')
+    resp = _req.post(
+        f'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={FIREBASE_WEB_API_KEY}',
+        json={'idToken': id_token},
+        timeout=8,
+    )
+    if resp.status_code != 200:
+        try:
+            msg = resp.json().get('error', {}).get('message', resp.text)
+        except Exception:
+            msg = resp.text
+        raise ValueError(f'accounts:lookup {resp.status_code}: {msg}')
+    data = resp.json()
+    users = data.get('users', [])
+    if not users:
+        raise ValueError('accounts:lookup: lista de usuarios vacía')
+    u = users[0]
+    return {
+        'uid':    u.get('localId', ''),
+        'email':  u.get('email', ''),
+        'nombre': u.get('displayName', ''),
+        'foto':   u.get('photoUrl', ''),
+    }
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
@@ -162,9 +160,11 @@ def api_auth_google():
     if not id_token:
         return jsonify({'error': 'Falta id_token'}), 400
 
-    fb = _verify_firebase_token(id_token)
-    if not fb:
-        return jsonify({'error': 'Token de Google inválido'}), 401
+    try:
+        fb = _verify_firebase_token(id_token)
+    except Exception as e:
+        print(f'[auth] verify failed: {e}')
+        return jsonify({'error': f'Token inválido: {e}'}), 401
 
     conn = _get_db()
 
@@ -286,9 +286,10 @@ def api_nido_crear():
     id_token = d.get('id_token', '')
     nombre_nido = d.get('nombre', 'Mi Nido').strip() or 'Mi Nido'
 
-    fb = _verify_firebase_token(id_token)
-    if not fb:
-        return jsonify({'error': 'Token de Google inválido'}), 401
+    try:
+        fb = _verify_firebase_token(id_token)
+    except Exception as e:
+        return jsonify({'error': f'Token inválido: {e}'}), 401
 
     conn = _get_db()
 
@@ -426,9 +427,10 @@ def api_invitacion_aceptar(token):
     d = request.get_json(silent=True) or {}
     id_token = d.get('id_token', '')
 
-    fb = _verify_firebase_token(id_token)
-    if not fb:
-        return jsonify({'error': 'Token de Google inválido'}), 401
+    try:
+        fb = _verify_firebase_token(id_token)
+    except Exception as e:
+        return jsonify({'error': f'Token inválido: {e}'}), 401
 
     conn = _get_db()
     inv = conn.execute('SELECT * FROM invitaciones WHERE token=?', (token,)).fetchone()
