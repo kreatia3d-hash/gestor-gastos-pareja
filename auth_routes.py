@@ -35,65 +35,34 @@ def _get_db():
 
 # ── Firebase token verification ───────────────────────────────────────────────
 
-_FIREBASE_PUBKEYS_CACHE = {}
-_FIREBASE_PUBKEYS_EXPIRY = 0
-
-def _get_firebase_public_keys():
-    """Obtiene las claves públicas de Firebase con caché en memoria."""
-    global _FIREBASE_PUBKEYS_CACHE, _FIREBASE_PUBKEYS_EXPIRY
-    import time
-    now = time.time()
-    if _FIREBASE_PUBKEYS_CACHE and now < _FIREBASE_PUBKEYS_EXPIRY:
-        return _FIREBASE_PUBKEYS_CACHE
-    try:
-        resp = _req.get(
-            'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com',
-            timeout=8
-        )
-        _FIREBASE_PUBKEYS_CACHE = resp.json()
-        cache_control = resp.headers.get('Cache-Control', 'max-age=3600')
-        max_age = 3600
-        for part in cache_control.split(','):
-            if 'max-age' in part:
-                try: max_age = int(part.split('=')[1].strip())
-                except: pass
-        _FIREBASE_PUBKEYS_EXPIRY = now + max_age
-        return _FIREBASE_PUBKEYS_CACHE
-    except Exception as e:
-        print(f'[auth] Error obteniendo claves Firebase: {e}')
-        return {}
-
 def _verify_firebase_token(id_token: str):
-    """Verifica un Firebase ID Token usando las claves públicas RSA de Firebase.
-    No requiere API key — funciona desde cualquier servidor."""
+    """Verifica un Firebase ID Token usando el endpoint accounts:lookup de Google.
+    Requiere FIREBASE_WEB_API_KEY sin restricciones de plataforma."""
     if not _DEPS_OK:
         return None
+    if not FIREBASE_WEB_API_KEY:
+        print('[auth] FIREBASE_WEB_API_KEY no configurado')
+        return None
     try:
-        project_id = os.environ.get('FIREBASE_PROJECT_ID', '')
-        if not project_id:
-            print('[auth] FIREBASE_PROJECT_ID no configurado')
-            return None
-
-        header = pyjwt.get_unverified_header(id_token)
-        kid = header.get('kid')
-        public_keys = _get_firebase_public_keys()
-
-        if not kid or kid not in public_keys:
-            print(f'[auth] kid "{kid}" no encontrado en claves Firebase')
-            return None
-
-        decoded = pyjwt.decode(
-            id_token,
-            public_keys[kid],
-            algorithms=['RS256'],
-            audience=project_id,
+        resp = _req.post(
+            f'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={FIREBASE_WEB_API_KEY}',
+            json={'idToken': id_token},
+            timeout=8,
         )
-
+        if resp.status_code != 200:
+            print(f'[auth] accounts:lookup error {resp.status_code}: {resp.text}')
+            return None
+        data = resp.json()
+        users = data.get('users', [])
+        if not users:
+            print('[auth] accounts:lookup: lista de usuarios vacía')
+            return None
+        u = users[0]
         return {
-            'uid':    decoded.get('sub', ''),
-            'email':  decoded.get('email', ''),
-            'nombre': decoded.get('name', ''),
-            'foto':   decoded.get('picture', ''),
+            'uid':    u.get('localId', ''),
+            'email':  u.get('email', ''),
+            'nombre': u.get('displayName', ''),
+            'foto':   u.get('photoUrl', ''),
         }
     except Exception as e:
         print(f'[auth] Firebase verify error: {e}')
