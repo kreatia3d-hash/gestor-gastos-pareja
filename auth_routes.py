@@ -2,7 +2,7 @@
 Auth layer para Nido – Google (Firebase) Sign-In + JWT propio.
 Todas las rutas nuevas de auth, nido e invitaciones van aquí.
 """
-import os, uuid, json, sqlite3
+import os, uuid, json, sqlite3, random
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -374,7 +374,7 @@ def api_nido_invitar():
         "UPDATE invitaciones SET estado='expirada' WHERE nido_id=? AND estado='pendiente'",
         (g.nido_id,)
     )
-    token = uuid.uuid4().hex
+    token = f'{random.randint(100000, 999999)}'
     expires = (datetime.utcnow() + timedelta(days=7)).isoformat()
     conn.execute(
         'INSERT INTO invitaciones (nido_id, creada_por, token, expires_at) VALUES(?,?,?,?)',
