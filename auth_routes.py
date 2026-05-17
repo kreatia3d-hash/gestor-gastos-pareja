@@ -547,7 +547,100 @@ def web_invite_landing(token):
         if primer_miembro: invitado_por = primer_miembro['nombre']
     conn.close()
     download_url = os.environ.get('DOWNLOAD_APK_URL', '')
-    return render_template('invite.html',
-        valida=valida, token=token,
-        nido_nombre=nido_nombre, invitado_por=invitado_por,
-        download_url=download_url)
+    return _render_invite(valida, token, invitado_por, download_url)
+
+
+def _render_invite(valida, token, invitado_por, download_url):
+    dl_btn = f'''
+      <a href="{download_url}" class="btn btn-download">
+        <span>⬇</span> Descargar Nido (Android)
+      </a>''' if download_url else ''
+
+    if valida:
+        content = f'''
+      <span class="nido-icon">🪺</span>
+      <div class="invite-label">Invitación personal</div>
+      <h1>{invitado_por} quiere compartir el nido contigo</h1>
+      <p class="desc">Gestiona el dinero en pareja de forma sencilla y sin discusiones.
+        Gastos compartidos, metas de ahorro, y siempre al día — todo en un mismo lugar.</p>
+      <div class="features">
+        <div class="feature"><span class="feature-icon">💸</span>
+          <span class="feature-text">Registra y divide gastos al instante</span></div>
+        <div class="feature"><span class="feature-icon">🎯</span>
+          <span class="feature-text">Crea metas de ahorro compartidas</span></div>
+        <div class="feature"><span class="feature-icon">🔒</span>
+          <span class="feature-text">Privado — solo vosotros dos lo veis</span></div>
+      </div>
+      {dl_btn}
+      <a href="nido://invite/{token}" class="btn btn-primary">
+        <span>🪺</span> Ya tengo la app — Unirme
+      </a>
+      <p class="hint">Descarga la app, inicia sesión con Google y vuelve aquí para unirte.</p>'''
+    else:
+        content = f'''
+      <span class="nido-icon">⏳</span>
+      <h1>Esta invitación ya no está disponible</h1>
+      <p class="desc">El enlace ha expirado o ya fue utilizado.<br>
+        Pide a tu pareja que genere uno nuevo desde Nido.</p>
+      {dl_btn}'''
+
+    html = f'''<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{invitado_por} te invita a Nido</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{{margin:0;padding:0;box-sizing:border-box}}
+    :root{{--bosque:#3F5E54;--salvia:#5C8374;--crema:#F5EDE0;--dorado:#E8B86D;--carbon:#2D2D2D}}
+    body{{font-family:'Inter',sans-serif;background:var(--bosque);min-height:100vh;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;
+         position:relative;overflow-x:hidden}}
+    body::before{{content:'';position:fixed;top:-30%;right:-20%;width:600px;height:600px;
+                  background:radial-gradient(circle,rgba(92,131,116,.35) 0%,transparent 70%);pointer-events:none}}
+    .wrapper{{width:100%;max-width:440px;position:relative;z-index:1}}
+    .marca{{text-align:center;margin-bottom:28px}}
+    .marca-logo{{font-family:'Fraunces',serif;font-size:38px;font-weight:700;color:var(--crema)}}
+    .marca-sub{{font-size:12px;color:rgba(245,237,224,.5);letter-spacing:2px;text-transform:uppercase;margin-top:2px}}
+    .card{{background:var(--crema);border-radius:28px;padding:40px 32px 36px;box-shadow:0 32px 80px rgba(0,0,0,.35)}}
+    .nido-icon{{font-size:56px;text-align:center;margin-bottom:20px;display:block}}
+    .invite-label{{display:inline-block;background:rgba(92,131,116,.12);color:var(--salvia);
+                   font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+                   padding:4px 12px;border-radius:20px;margin-bottom:12px}}
+    h1{{font-family:'Fraunces',serif;font-size:24px;font-weight:700;color:var(--carbon);
+        line-height:1.25;margin-bottom:12px}}
+    .desc{{color:#6B7B74;font-size:15px;line-height:1.65;margin-bottom:24px}}
+    .features{{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}}
+    .feature{{display:flex;align-items:center;gap:12px;background:rgba(63,94,84,.06);
+              border-radius:12px;padding:12px 16px}}
+    .feature-icon{{font-size:20px;flex-shrink:0}}
+    .feature-text{{font-size:13px;color:#4A5A54;font-weight:500}}
+    .btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+          padding:17px 24px;border-radius:16px;font-family:'Inter',sans-serif;font-size:16px;
+          font-weight:600;text-decoration:none;margin-bottom:12px;border:none;cursor:pointer;
+          transition:transform .15s,box-shadow .15s}}
+    .btn:active{{transform:scale(.98)}}
+    .btn-primary{{background:var(--bosque);color:var(--crema);box-shadow:0 8px 24px rgba(63,94,84,.35)}}
+    .btn-primary:hover{{background:#344f46;transform:translateY(-1px)}}
+    .btn-download{{background:linear-gradient(135deg,var(--dorado),#d4a55a);color:var(--carbon);
+                   box-shadow:0 8px 24px rgba(232,184,109,.4)}}
+    .btn-download:hover{{transform:translateY(-1px)}}
+    .hint{{text-align:center;color:#9BA8A3;font-size:12px;line-height:1.6;margin-top:4px}}
+    .footer{{text-align:center;margin-top:20px;color:rgba(245,237,224,.35);font-size:12px}}
+    @media(max-width:480px){{.card{{padding:32px 24px 28px}}h1{{font-size:20px}}}}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="marca">
+      <div class="marca-logo">Nido</div>
+      <div class="marca-sub">by Kreatia</div>
+    </div>
+    <div class="card">{content}</div>
+    <div class="footer">Nido by Kreatia · Solo para parejas</div>
+  </div>
+</body>
+</html>'''
+    from flask import make_response
+    return make_response(html, 200)
