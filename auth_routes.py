@@ -362,12 +362,6 @@ def api_nido_invitar():
     """Genera un token de invitación para unirse al nido actual.
     El nido solo puede tener 2 miembros."""
     conn = _get_db()
-    miembros = conn.execute(
-        'SELECT COUNT(*) as c FROM firebase_users WHERE nido_id=?', (g.nido_id,)
-    ).fetchone()['c']
-    if miembros >= 2:
-        conn.close()
-        return jsonify({'error': 'El nido ya tiene 2 miembros'}), 400
 
     # Invalidar invitaciones anteriores de este nido
     conn.execute(
@@ -441,6 +435,11 @@ def api_invitacion_aceptar(token):
         conn.close()
         return jsonify({'error': 'Invitación expirada'}), 410
 
+    # Nido lleno: ya hay 2 miembros activos
+    nido_lleno = conn.execute(
+        'SELECT COUNT(*) as c FROM firebase_users WHERE nido_id=?', (inv['nido_id'],)
+    ).fetchone()['c'] >= 2
+
     # ¿El usuario ya tiene nido?
     fuser = conn.execute(
         'SELECT * FROM firebase_users WHERE firebase_uid=?', (fb['uid'],)
@@ -454,6 +453,10 @@ def api_invitacion_aceptar(token):
         return jsonify({'error': 'Ya perteneces a otro nido'}), 409
 
     nido_id = inv['nido_id']
+
+    if nido_lleno:
+        conn.close()
+        return jsonify({'error': 'El nido ya está completo'}), 400
 
     # Asignar al segundo usuario existente del nido (o crear uno nuevo)
     segundo = conn.execute(
