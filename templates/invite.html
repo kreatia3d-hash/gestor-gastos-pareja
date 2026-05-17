@@ -3,56 +3,303 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Invitación a {{ nido_nombre }} — Nido</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <title>{{ invitado_por }} te invita a Nido</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Inter',sans-serif; background:linear-gradient(135deg,#3F5E54,#2D2D2D);
-           min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
-    .card { background:#F5EDE0; border-radius:24px; padding:40px 32px; max-width:420px; width:100%;
-            text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.3); }
-    .logo { font-family:'Fraunces',serif; font-size:36px; color:#3F5E54; margin-bottom:4px; }
-    .sub  { color:#6B6B6B; font-size:14px; margin-bottom:32px; }
-    .icon { font-size:64px; margin-bottom:16px; }
-    h2    { font-family:'Fraunces',serif; font-size:24px; color:#2D2D2D; margin-bottom:8px; }
-    p     { color:#6B6B6B; font-size:15px; line-height:1.6; margin-bottom:28px; }
-    .btn  { display:block; background:#5C8374; color:#fff; text-decoration:none;
-            padding:16px 24px; border-radius:14px; font-weight:600; font-size:16px;
-            margin-bottom:12px; transition:background .2s; }
-    .btn:hover { background:#3F5E54; }
-    .btn-sec { background:transparent; border:2px solid #5C8374; color:#5C8374; }
-    .btn-sec:hover { background:#E5EDE9; }
-    .expirada { color:#B16B4F; font-weight:600; font-size:18px; margin:16px 0; }
-    small { color:#A8A8A8; font-size:12px; display:block; margin-top:16px; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bosque:   #3F5E54;
+      --salvia:   #5C8374;
+      --crema:    #F5EDE0;
+      --dorado:   #E8B86D;
+      --terracota:#D4886A;
+      --carbon:   #2D2D2D;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bosque);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Fondo decorativo */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -30%;
+      right: -20%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(92,131,116,0.35) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -20%;
+      left: -20%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(232,184,109,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 440px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header marca */
+    .marca {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .marca-logo {
+      font-family: 'Fraunces', serif;
+      font-size: 38px;
+      font-weight: 700;
+      color: var(--crema);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+    .marca-sub {
+      font-size: 12px;
+      color: rgba(245,237,224,0.5);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Tarjeta principal */
+    .card {
+      background: var(--crema);
+      border-radius: 28px;
+      padding: 40px 32px 36px;
+      box-shadow: 0 32px 80px rgba(0,0,0,.35);
+    }
+
+    .nido-icon {
+      font-size: 56px;
+      text-align: center;
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .invite-label {
+      display: inline-block;
+      background: rgba(92,131,116,0.12);
+      color: var(--salvia);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--carbon);
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+
+    .desc {
+      color: #6B7B74;
+      font-size: 15px;
+      line-height: 1.65;
+      margin-bottom: 28px;
+    }
+
+    /* Features */
+    .features {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(63,94,84,0.06);
+      border-radius: 12px;
+      padding: 12px 16px;
+    }
+    .feature-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .feature-text {
+      font-size: 13px;
+      color: #4A5A54;
+      font-weight: 500;
+    }
+
+    /* Botones */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 17px 24px;
+      border-radius: 16px;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s, background .2s;
+      cursor: pointer;
+      border: none;
+      margin-bottom: 12px;
+    }
+    .btn:active { transform: scale(0.98); }
+
+    .btn-primary {
+      background: var(--bosque);
+      color: var(--crema);
+      box-shadow: 0 8px 24px rgba(63,94,84,0.35);
+    }
+    .btn-primary:hover {
+      background: #344f46;
+      box-shadow: 0 12px 32px rgba(63,94,84,0.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 2px solid var(--salvia);
+      color: var(--bosque);
+    }
+    .btn-secondary:hover {
+      background: rgba(92,131,116,0.08);
+    }
+
+    .btn-download {
+      background: linear-gradient(135deg, var(--dorado), #d4a55a);
+      color: var(--carbon);
+      box-shadow: 0 8px 24px rgba(232,184,109,0.4);
+    }
+    .btn-download:hover {
+      box-shadow: 0 12px 32px rgba(232,184,109,0.55);
+      transform: translateY(-1px);
+    }
+
+    .hint {
+      text-align: center;
+      color: #9BA8A3;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+
+    /* Estado inválido */
+    .invalid-icon { font-size: 56px; text-align:center; display:block; margin-bottom:20px; }
+    .invalid-title {
+      font-family: 'Fraunces', serif;
+      font-size: 24px;
+      color: var(--carbon);
+      margin-bottom: 10px;
+    }
+    .invalid-desc { color:#6B7B74; font-size:15px; line-height:1.65; margin-bottom:28px; }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      color: rgba(245,237,224,0.35);
+      font-size: 12px;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 32px 24px 28px; }
+      h1 { font-size: 22px; }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">Nido</div>
-    <div class="sub">by Kreatia</div>
+  <div class="wrapper">
 
-    {% if valida %}
-    <div class="icon">🪺</div>
-    <h2>{{ invitado_por }} te invita</h2>
-    <p>Te han invitado a unirte a <strong>{{ nido_nombre }}</strong> en Nido — la app de gestión compartida para parejas.</p>
+    <div class="marca">
+      <div class="marca-logo">Nido</div>
+      <div class="marca-sub">by Kreatia</div>
+    </div>
 
-    <a href="nido://invite/{{ token }}" class="btn">
-      Abrir en la app Nido
-    </a>
-    <a href="https://play.google.com/store/apps/details?id=com.gestorgastos.gastos_en_pareja" class="btn btn-sec">
-      Descargar Nido
-    </a>
-    <small>Si ya tienes la app instalada, pulsa "Abrir en la app".<br>Si no, descárgala primero.</small>
+    <div class="card">
+      {% if valida %}
 
-    {% else %}
-    <div class="icon">⏰</div>
-    <h2>Invitación no válida</h2>
-    <p class="expirada">Esta invitación ha expirado o ya fue utilizada.</p>
-    <p>Pide a tu pareja que genere una nueva invitación desde la app Nido.</p>
-    <a href="https://play.google.com/store/apps/details?id=com.gestorgastos.gastos_en_pareja" class="btn">
-      Descargar Nido
-    </a>
-    {% endif %}
+      <span class="nido-icon">🪺</span>
+      <div class="invite-label">Invitación personal</div>
+      <h1>{{ invitado_por }} quiere compartir el nido contigo</h1>
+      <p class="desc">
+        Gestiona el dinero en pareja de forma sencilla y sin discusiones.
+        Gastos compartidos, metas de ahorro, y siempre al día con tu pareja —
+        todo en un mismo lugar.
+      </p>
+
+      <div class="features">
+        <div class="feature">
+          <span class="feature-icon">💸</span>
+          <span class="feature-text">Registra y divide gastos al instante</span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">🎯</span>
+          <span class="feature-text">Crea metas de ahorro compartidas</span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">🔒</span>
+          <span class="feature-text">Privado — solo vosotros dos lo veis</span>
+        </div>
+      </div>
+
+      {% if download_url %}
+      <a href="{{ download_url }}" class="btn btn-download">
+        <span>⬇</span> Descargar Nido (Android)
+      </a>
+      {% endif %}
+
+      <a href="nido://invite/{{ token }}" class="btn btn-primary">
+        <span>🪺</span> Ya tengo la app — Unirme
+      </a>
+
+      <p class="hint">
+        Descarga primero la app, ábrela e inicia sesión con Google.<br>
+        Luego vuelve aquí y pulsa "Unirme".
+      </p>
+
+      {% else %}
+
+      <span class="invalid-icon">⏳</span>
+      <h1 class="invalid-title">Esta invitación ya no está disponible</h1>
+      <p class="invalid-desc">
+        El enlace ha expirado o ya fue utilizado.<br>
+        Pide a tu pareja que genere uno nuevo desde la app Nido.
+      </p>
+
+      {% if download_url %}
+      <a href="{{ download_url }}" class="btn btn-download">
+        <span>⬇</span> Descargar Nido igualmente
+      </a>
+      {% endif %}
+
+      {% endif %}
+    </div>
+
+    <div class="footer">Nido by Kreatia · Solo para parejas</div>
   </div>
 </body>
 </html>

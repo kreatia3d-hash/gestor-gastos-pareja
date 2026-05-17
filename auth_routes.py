@@ -546,6 +546,8 @@ def web_invite_landing(token):
         if nido:           nido_nombre = nido['nombre']
         if primer_miembro: invitado_por = primer_miembro['nombre']
     conn.close()
+    download_url = os.environ.get('DOWNLOAD_APK_URL', '')
     return render_template('invite.html',
         valida=valida, token=token,
-        nido_nombre=nido_nombre, invitado_por=invitado_por)
+        nido_nombre=nido_nombre, invitado_por=invitado_por,
+        download_url=download_url)
