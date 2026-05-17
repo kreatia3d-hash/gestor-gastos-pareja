@@ -2091,6 +2091,9 @@ Elige la categoria_id más apropiada. Importe siempre número decimal sin €.
 Si el usuario no menciona importe, pregúntale. No inventes importes."""
 
     messages = [{'role': h['rol'], 'content': h['texto']} for h in historial[-12:]]
+    # La API de Anthropic requiere que el primer mensaje sea del rol 'user'
+    while messages and messages[0]['role'] != 'user':
+        messages.pop(0)
     messages.append({'role': 'user', 'content': mensaje})
 
     try:
