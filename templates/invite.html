@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invitación a {{ nido_nombre }} — Nido</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',sans-serif; background:linear-gradient(135deg,#3F5E54,#2D2D2D);
+           min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+    .card { background:#F5EDE0; border-radius:24px; padding:40px 32px; max-width:420px; width:100%;
+            text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+    .logo { font-family:'Fraunces',serif; font-size:36px; color:#3F5E54; margin-bottom:4px; }
+    .sub  { color:#6B6B6B; font-size:14px; margin-bottom:32px; }
+    .icon { font-size:64px; margin-bottom:16px; }
+    h2    { font-family:'Fraunces',serif; font-size:24px; color:#2D2D2D; margin-bottom:8px; }
+    p     { color:#6B6B6B; font-size:15px; line-height:1.6; margin-bottom:28px; }
+    .btn  { display:block; background:#5C8374; color:#fff; text-decoration:none;
+            padding:16px 24px; border-radius:14px; font-weight:600; font-size:16px;
+            margin-bottom:12px; transition:background .2s; }
+    .btn:hover { background:#3F5E54; }
+    .btn-sec { background:transparent; border:2px solid #5C8374; color:#5C8374; }
+    .btn-sec:hover { background:#E5EDE9; }
+    .expirada { color:#B16B4F; font-weight:600; font-size:18px; margin:16px 0; }
+    small { color:#A8A8A8; font-size:12px; display:block; margin-top:16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Nido</div>
+    <div class="sub">by Kreatia</div>
+
+    {% if valida %}
+    <div class="icon">🪺</div>
+    <h2>{{ invitado_por }} te invita</h2>
+    <p>Te han invitado a unirte a <strong>{{ nido_nombre }}</strong> en Nido — la app de gestión compartida para parejas.</p>
+
+    <a href="nido://invite/{{ token }}" class="btn">
+      Abrir en la app Nido
+    </a>
+    <a href="https://play.google.com/store/apps/details?id=com.gestorgastos.gastos_en_pareja" class="btn btn-sec">
+      Descargar Nido
+    </a>
+    <small>Si ya tienes la app instalada, pulsa "Abrir en la app".<br>Si no, descárgala primero.</small>
+
+    {% else %}
+    <div class="icon">⏰</div>
+    <h2>Invitación no válida</h2>
+    <p class="expirada">Esta invitación ha expirado o ya fue utilizada.</p>
+    <p>Pide a tu pareja que genere una nueva invitación desde la app Nido.</p>
+    <a href="https://play.google.com/store/apps/details?id=com.gestorgastos.gastos_en_pareja" class="btn">
+      Descargar Nido
+    </a>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -20,10 +20,36 @@ app.secret_key = SECRET_KEY
 
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, 'gastos.db')
+app.config['DB_PATH'] = DB_PATH
+
+# ── Auth layer (Google Sign-In + JWT) ─────────────────────────────────────────
+from auth_routes import auth_bp, get_nido_id_from_request
+app.register_blueprint(auth_bp)
 print(f'[config] DATA_DIR={DATA_DIR!r} DB_PATH={DB_PATH!r}')
 
 NOMBRES_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+CATEGORIA_ICONOS = {
+    'Comida': 'bi-cart',
+    'Casa': 'bi-house',
+    'Coche': 'bi-fuel-pump',
+    'Ocio': 'bi-controller',
+    'Salud': 'bi-heart-pulse',
+    'Salario': 'bi-briefcase',
+    'Extra': 'bi-gift',
+    'Otros': 'bi-three-dots',
+    'Ahorro': 'bi-piggy-bank',
+    'Supermercado': 'bi-basket2',
+    'Restaurante': 'bi-cup-hot',
+    'Transporte': 'bi-train-front',
+    'Ropa': 'bi-bag',
+    'Viaje': 'bi-airplane',
+    'Telefono': 'bi-phone',
+    'Suscripciones': 'bi-tv',
+    'Mascota': 'bi-paw',
+    'Educacion': 'bi-book',
+}
 
 # Solo en modo local (PC Windows)
 TUNNEL_URL    = None
@@ -56,6 +82,10 @@ def get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+@app.context_processor
+def inject_globals():
+    return {'CATEGORIA_ICONOS': CATEGORIA_ICONOS}
 
 
 BACKUP_PATH = os.path.join(DATA_DIR, 'backup_datos.json')
@@ -226,6 +256,41 @@ def init_db():
         FOREIGN KEY (categoria_id) REFERENCES categorias_gasto(id)
     )''')
 
+    # ── Tablas multi-tenant (nidos, auth) ────────────────────────────────────
+    c.execute('''CREATE TABLE IF NOT EXISTS nidos (
+        id INTEGER PRIMARY KEY,
+        nombre TEXT NOT NULL DEFAULT "Mi Nido",
+        plan TEXT DEFAULT "free",
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS firebase_users (
+        id INTEGER PRIMARY KEY,
+        firebase_uid TEXT UNIQUE NOT NULL,
+        email TEXT NOT NULL,
+        nombre TEXT,
+        foto TEXT,
+        nido_id INTEGER,
+        usuario_id INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (nido_id) REFERENCES nidos(id),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS invitaciones (
+        id INTEGER PRIMARY KEY,
+        nido_id INTEGER NOT NULL,
+        creada_por INTEGER,
+        token TEXT UNIQUE NOT NULL,
+        expires_at TEXT NOT NULL,
+        estado TEXT DEFAULT "pendiente",
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (nido_id) REFERENCES nidos(id)
+    )''')
+
+    # Nido por defecto (para datos existentes)
+    c.execute("INSERT OR IGNORE INTO nidos (id, nombre) VALUES (1, 'Mi Nido')")
+
     # Migraciones para bases de datos existentes
     for migration in [
         "ALTER TABLE usuarios ADD COLUMN pin TEXT",
@@ -235,6 +300,13 @@ def init_db():
         "ALTER TABLE aportaciones_meta ADD COLUMN gasto_id INTEGER",
         "ALTER TABLE presupuestos ADD COLUMN mes INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE presupuestos ADD COLUMN anio INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN nido_id INTEGER DEFAULT 1",
+        "ALTER TABLE gastos ADD COLUMN nido_id INTEGER DEFAULT 1",
+        "ALTER TABLE ingresos ADD COLUMN nido_id INTEGER DEFAULT 1",
+        "ALTER TABLE metas_ahorro ADD COLUMN nido_id INTEGER DEFAULT 1",
+        "ALTER TABLE categorias_gasto ADD COLUMN nido_id INTEGER DEFAULT 1",
+        "ALTER TABLE presupuestos ADD COLUMN nido_id INTEGER DEFAULT 1",
+        "ALTER TABLE notificaciones ADD COLUMN nido_id INTEGER DEFAULT 1",
     ]:
         try:
             c.execute(migration)
@@ -631,15 +703,22 @@ def api_tunnel():
 
 # ── API JSON para Flutter ─────────────────────────────────────────────────────
 
+# Helper: nido_id viene del JWT cuando existe, o 1 para compatibilidad
+def _nido() -> int:
+    return get_nido_id_from_request()
+
 @app.route('/api/usuarios')
 def api_usuarios():
     conn = get_db()
-    rows = conn.execute("SELECT id, nombre, color, emoji, foto, pin FROM usuarios").fetchall()
+    rows = conn.execute(
+        "SELECT id, nombre, color, emoji, foto, pin FROM usuarios WHERE nido_id=?",
+        (_nido(),)
+    ).fetchall()
     conn.close()
     result = []
     for r in rows:
         d = dict(r)
-        d['tiene_pin'] = bool(d.pop('pin'))  # No exponer el PIN real
+        d['tiene_pin'] = bool(d.pop('pin'))
         result.append(d)
     return jsonify(result)
 
@@ -680,7 +759,9 @@ def api_login():
 @app.route('/api/categorias')
 def api_categorias():
     conn = get_db()
-    rows = conn.execute("SELECT * FROM categorias_gasto ORDER BY nombre").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM categorias_gasto WHERE nido_id=? ORDER BY nombre", (_nido(),)
+    ).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -723,8 +804,8 @@ def api_gastos():
         FROM gastos g
         LEFT JOIN usuarios u ON g.usuario_id=u.id
         LEFT JOIN categorias_gasto c ON g.categoria_id=c.id
-        WHERE strftime('%Y-%m', g.fecha)=?"""
-    params = [mes_str]
+        WHERE strftime('%Y-%m', g.fecha)=? AND g.nido_id=?"""
+    params = [mes_str, _nido()]
     if cat_filtro:
         q += " AND g.categoria_id=?"; params.append(cat_filtro)
     if usr_filtro:
@@ -748,13 +829,13 @@ def api_gasto_crear():
     conn = get_db()
 
     cur = conn.execute("""INSERT INTO gastos
-        (usuario_id, categoria_id, descripcion, importe, fecha, es_fijo, notas, meta_id)
-        VALUES(?,?,?,?,?,?,?,?)""", (
+        (usuario_id, categoria_id, descripcion, importe, fecha, es_fijo, notas, meta_id, nido_id)
+        VALUES(?,?,?,?,?,?,?,?,?)""", (
         usuario_id, categoria_id,
         d.get('descripcion', '').strip(),
         importe,
         d.get('fecha'), 1 if d.get('es_fijo') else 0,
-        d.get('notas', '').strip(), meta_id
+        d.get('notas', '').strip(), meta_id, _nido()
     ))
     gid = cur.lastrowid
 
@@ -829,9 +910,9 @@ def api_ingresos():
         SELECT i.*, u.nombre as unombre, u.color as ucolor, u.emoji as uemoji
         FROM ingresos i
         LEFT JOIN usuarios u ON i.usuario_id=u.id
-        WHERE strftime('%Y-%m', i.fecha)=?
+        WHERE strftime('%Y-%m', i.fecha)=? AND i.nido_id=?
         ORDER BY i.fecha DESC, i.created_at DESC
-    """, (mes_str,)).fetchall()
+    """, (mes_str, _nido())).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -843,11 +924,11 @@ def api_ingreso_crear():
     importe = float(d.get('importe', 0))
     conn = get_db()
     cur = conn.execute("""INSERT INTO ingresos
-        (usuario_id, descripcion, importe, fecha, es_nomina, notas)
-        VALUES(?,?,?,?,?,?)""", (
+        (usuario_id, descripcion, importe, fecha, es_nomina, notas, nido_id)
+        VALUES(?,?,?,?,?,?,?)""", (
         usuario_id, desc, importe,
         d.get('fecha'), 1 if d.get('es_nomina') else 0,
-        d.get('notas', '').strip()
+        d.get('notas', '').strip(), _nido()
     ))
     conn.commit()
     iid = cur.lastrowid
@@ -897,24 +978,29 @@ def api_dashboard():
     mes = request.args.get('mes', date.today().month, type=int)
     anio = request.args.get('anio', date.today().year, type=int)
     mes_str = f"{anio}-{mes:02d}"
+    nid = _nido()
     conn = get_db()
 
     total_gastos = conn.execute(
-        "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?", (mes_str,)
+        "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=? AND nido_id=?",
+        (mes_str, nid)
     ).fetchone()['t']
     total_ingresos = conn.execute(
-        "SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (mes_str,)
+        "SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=? AND nido_id=?",
+        (mes_str, nid)
     ).fetchone()['t']
     gastos_fijos = conn.execute(
-        "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE es_fijo=1 AND strftime('%Y-%m',fecha)=?", (mes_str,)
+        "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE es_fijo=1 AND strftime('%Y-%m',fecha)=? AND nido_id=?",
+        (mes_str, nid)
     ).fetchone()['t']
 
     gastos_cat = [dict(r) for r in conn.execute("""
         SELECT c.nombre, c.color, c.icono, COALESCE(SUM(g.importe),0) as total
         FROM categorias_gasto c
-        LEFT JOIN gastos g ON g.categoria_id=c.id AND strftime('%Y-%m',g.fecha)=?
-        WHERE c.activa=1 GROUP BY c.id HAVING total > 0 ORDER BY total DESC
-    """, (mes_str,)).fetchall()]
+        LEFT JOIN gastos g ON g.categoria_id=c.id AND strftime('%Y-%m',g.fecha)=? AND g.nido_id=?
+        WHERE c.activa=1 AND c.nido_id=?
+        GROUP BY c.id HAVING total > 0 ORDER BY total DESC
+    """, (mes_str, nid, nid)).fetchall()]
 
     evolucion = []
     for i in range(5, -1, -1):
@@ -922,9 +1008,15 @@ def api_dashboard():
         a = anio
         while m <= 0: m += 12; a -= 1
         ms = f"{a}-{m:02d}"
-        g = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
-        inc = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
-        evolucion.append({'label': NOMBRES_MESES[m-1][:3], 'gastos': round(g,2), 'ingresos': round(inc,2)})
+        gv = conn.execute(
+            "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=? AND nido_id=?",
+            (ms, nid)
+        ).fetchone()['t']
+        inc = conn.execute(
+            "SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=? AND nido_id=?",
+            (ms, nid)
+        ).fetchone()['t']
+        evolucion.append({'label': NOMBRES_MESES[m-1][:3], 'gastos': round(gv,2), 'ingresos': round(inc,2)})
 
     ultimos = [dict(r) for r in conn.execute("""
         SELECT g.id, g.descripcion, g.importe, g.fecha, g.es_fijo,
@@ -933,9 +1025,9 @@ def api_dashboard():
         FROM gastos g
         LEFT JOIN usuarios u ON g.usuario_id=u.id
         LEFT JOIN categorias_gasto c ON g.categoria_id=c.id
-        WHERE strftime('%Y-%m',g.fecha)=?
+        WHERE strftime('%Y-%m',g.fecha)=? AND g.nido_id=?
         ORDER BY g.fecha DESC, g.created_at DESC LIMIT 6
-    """, (mes_str,)).fetchall()]
+    """, (mes_str, nid)).fetchall()]
 
     conn.close()
     return jsonify({
@@ -956,8 +1048,9 @@ def api_metas():
     conn = get_db()
     rows = conn.execute("""
         SELECT *, ROUND(importe_actual*100.0/NULLIF(importe_objetivo,0),1) as progreso
-        FROM metas_ahorro ORDER BY completada ASC, fecha_limite ASC
-    """).fetchall()
+        FROM metas_ahorro WHERE nido_id=?
+        ORDER BY completada ASC, fecha_limite ASC
+    """, (_nido(),)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -966,11 +1059,11 @@ def api_meta_crear():
     d = request.get_json()
     conn = get_db()
     cur = conn.execute("""INSERT INTO metas_ahorro
-        (nombre, descripcion, importe_objetivo, fecha_limite, color)
-        VALUES(?,?,?,?,?)""", (
+        (nombre, descripcion, importe_objetivo, fecha_limite, color, nido_id)
+        VALUES(?,?,?,?,?,?)""", (
         d.get('nombre','').strip(), d.get('descripcion','').strip(),
         float(d.get('importe_objetivo',0)),
-        d.get('fecha_limite') or None, d.get('color','#4f8ef7')
+        d.get('fecha_limite') or None, d.get('color','#4f8ef7'), _nido()
     ))
     conn.commit()
     mid = cur.lastrowid
@@ -1030,13 +1123,20 @@ def api_meta_abonar(mid):
 @app.route('/api/resumen')
 def api_resumen():
     anio = request.args.get('anio', date.today().year, type=int)
+    nid = _nido()
     conn = get_db()
     meses = []
     for m in range(1, 13):
         ms = f"{anio}-{m:02d}"
-        g = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
-        inc = conn.execute("SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (ms,)).fetchone()['t']
-        meses.append({'mes': NOMBRES_MESES[m-1], 'mes_num': m, 'gastos': g, 'ingresos': inc, 'balance': inc-g})
+        gv = conn.execute(
+            "SELECT COALESCE(SUM(importe),0) as t FROM gastos WHERE strftime('%Y-%m',fecha)=? AND nido_id=?",
+            (ms, nid)
+        ).fetchone()['t']
+        inc = conn.execute(
+            "SELECT COALESCE(SUM(importe),0) as t FROM ingresos WHERE strftime('%Y-%m',fecha)=? AND nido_id=?",
+            (ms, nid)
+        ).fetchone()['t']
+        meses.append({'mes': NOMBRES_MESES[m-1], 'mes_num': m, 'gastos': gv, 'ingresos': inc, 'balance': inc-gv})
     conn.close()
     return jsonify({'anio': anio, 'meses': meses})
 
