@@ -2113,21 +2113,6 @@ Si el usuario no menciona importe, pregúntale. No inventes importes."""
     return jsonify(data)
 
 
-@app.route('/api/reset_datos_tmp', methods=['POST'])
-def api_reset_datos_tmp():
-    conn = get_db()
-    conn.execute("DELETE FROM aportaciones_meta")
-    conn.execute("DELETE FROM gastos")
-    conn.execute("DELETE FROM ingresos")
-    conn.execute("DELETE FROM metas_ahorro")
-    conn.commit()
-    g_count = conn.execute("SELECT COUNT(*) as c FROM gastos").fetchone()['c']
-    i_count = conn.execute("SELECT COUNT(*) as c FROM ingresos").fetchone()['c']
-    conn.close()
-    guardar_backup()
-    return jsonify({'ok': True, 'gastos': g_count, 'ingresos': i_count})
-
-
 if __name__ == '__main__':
     os.makedirs(DATA_DIR, exist_ok=True)
     init_db()
