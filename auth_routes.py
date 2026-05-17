@@ -111,6 +111,32 @@ def requiere_auth(f):
     return decorated
 
 
+# ── /api/auth/debug ──────────────────────────────────────────────────────────
+
+@auth_bp.route('/api/auth/debug', methods=['GET'])
+def api_auth_debug():
+    """Endpoint temporal para diagnosticar configuración de Firebase."""
+    api_key = FIREBASE_WEB_API_KEY
+    result = {
+        'deps_ok': _DEPS_OK,
+        'firebase_key_set': bool(api_key),
+        'firebase_key_prefix': api_key[:12] + '...' if api_key else None,
+        'firebase_project_id': os.environ.get('FIREBASE_PROJECT_ID', 'NO CONFIGURADO'),
+        'jwt_secret_set': bool(JWT_SECRET and JWT_SECRET != 'nido-secret-cambia-en-produccion-2025'),
+    }
+    if api_key and _DEPS_OK:
+        try:
+            resp = _req.post(
+                f'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={api_key}',
+                json={'idToken': 'test'},
+                timeout=8
+            )
+            result['firebase_api_response'] = resp.json().get('error', {}).get('message', 'OK')
+        except Exception as e:
+            result['firebase_api_response'] = f'ERROR: {e}'
+    return jsonify(result)
+
+
 # ── /api/auth/google ──────────────────────────────────────────────────────────
 
 @auth_bp.route('/api/auth/google', methods=['POST'])
