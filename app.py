@@ -1143,6 +1143,41 @@ def api_dashboard():
         ORDER BY g.fecha DESC, g.created_at DESC LIMIT 6
     """, (mes_str, nid)).fetchall()]
 
+    # Evolución por categoría (últimos 6 meses)
+    meses_labels = []
+    meses_strs   = []
+    for i in range(5, -1, -1):
+        m2 = mes - i; a2 = anio
+        while m2 <= 0: m2 += 12; a2 -= 1
+        meses_strs.append(f"{a2}-{m2:02d}")
+        meses_labels.append(NOMBRES_MESES[m2-1][:3])
+
+    inicio_6m = meses_strs[0]
+    raw_cat_evol = conn.execute("""
+        SELECT c.nombre, c.color,
+               strftime('%Y-%m', g.fecha) as mes,
+               COALESCE(SUM(g.importe), 0) as total
+        FROM gastos g
+        JOIN categorias_gasto c ON g.categoria_id = c.id
+        WHERE g.nido_id = ? AND strftime('%Y-%m', g.fecha) >= ?
+        GROUP BY c.nombre, c.color, mes
+        ORDER BY mes, total DESC
+    """, (nid, inicio_6m)).fetchall()
+
+    # Organizar en series por categoría (top 4 por total acumulado)
+    from collections import defaultdict
+    cat_totals = defaultdict(lambda: {'color': '#6c757d', 'meses': {m: 0 for m in meses_strs}})
+    for r in raw_cat_evol:
+        cat_totals[r['nombre']]['color'] = r['color']
+        cat_totals[r['nombre']]['meses'][r['mes']] = round(float(r['total']), 2)
+
+    top_cats = sorted(cat_totals.items(), key=lambda x: sum(x[1]['meses'].values()), reverse=True)[:4]
+    series_cat = [
+        {'nombre': nombre, 'color': info['color'],
+         'valores': [info['meses'].get(m, 0) for m in meses_strs]}
+        for nombre, info in top_cats
+    ]
+
     conn.close()
     return jsonify({
         'mes': mes, 'anio': anio, 'mes_str': mes_str,
@@ -1154,6 +1189,7 @@ def api_dashboard():
         'gastos_variables': total_gastos - gastos_fijos,
         'gastos_categoria': gastos_cat,
         'evolucion': evolucion,
+        'evolucion_categorias': {'meses': meses_labels, 'series': series_cat},
         'ultimos_gastos': ultimos,
     })
 
@@ -2455,7 +2491,10 @@ def terminos():
 
 if __name__ == '__main__':
     os.makedirs(DATA_DIR, exist_ok=True)
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f'[startup] init_db warning: {e}')
     if not IS_CLOUD:
         start_tunnel()
         start_discovery_broadcast()
