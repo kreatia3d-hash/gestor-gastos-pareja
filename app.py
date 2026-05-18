@@ -1,10 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 import os
 from datetime import datetime, date
 import threading
 import re
 import time
 import json
+import csv
+import io
+import zipfile
 import db as _db
 
 # ── Configuración según entorno ───────────────────────────────────────────────
@@ -2302,6 +2305,140 @@ def api_eliminar_cuenta():
     conn.commit()
     conn.close()
     return jsonify({'ok': True, 'mensaje': 'Cuenta eliminada correctamente.'})
+
+
+# ── Exportación de datos (CSV / Excel / PDF) ─────────────────────────────────
+
+def _datos_nido(nid, conn):
+    return {
+        'gastos':   conn.execute("SELECT fecha, descripcion, monto, categoria FROM gastos WHERE nido_id=? ORDER BY fecha", (nid,)).fetchall(),
+        'ingresos': conn.execute("SELECT fecha, descripcion, monto FROM ingresos WHERE nido_id=? ORDER BY fecha", (nid,)).fetchall(),
+        'metas':    conn.execute("SELECT nombre, objetivo, ahorrado FROM metas_ahorro WHERE nido_id=? ORDER BY created_at", (nid,)).fetchall(),
+    }
+
+
+@app.route('/api/mis-datos/csv')
+def api_mis_datos_csv():
+    nid  = _nido()
+    conn = get_db()
+    d    = _datos_nido(nid, conn)
+    conn.close()
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for nombre, filas in d.items():
+            sf = io.StringIO()
+            if filas:
+                w = csv.DictWriter(sf, fieldnames=filas[0].keys())
+                w.writeheader()
+                w.writerows(filas)
+            zf.writestr(f'{nombre}.csv', sf.getvalue())
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype='application/zip',
+        headers={'Content-Disposition': 'attachment; filename=nido_datos.zip'})
+
+
+@app.route('/api/mis-datos/excel')
+def api_mis_datos_excel():
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    nid  = _nido()
+    conn = get_db()
+    d    = _datos_nido(nid, conn)
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    verde = PatternFill('solid', fgColor='3F5E54')
+    font_h = Font(color='F5EDE0', bold=True)
+
+    nombres = {'gastos': 'Gastos', 'ingresos': 'Ingresos', 'metas': 'Metas de ahorro'}
+    for key, filas in d.items():
+        ws = wb.create_sheet(nombres[key])
+        if not filas:
+            continue
+        cabeceras = list(filas[0].keys())
+        for col, cab in enumerate(cabeceras, 1):
+            c = ws.cell(row=1, column=col, value=cab.capitalize())
+            c.font = font_h
+            c.fill = verde
+            c.alignment = Alignment(horizontal='center')
+            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = 18
+        for r, fila in enumerate(filas, 2):
+            for col, val in enumerate(fila.values(), 1):
+                ws.cell(row=r, column=col, value=val)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(buf.getvalue(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': 'attachment; filename=nido_datos.xlsx'})
+
+
+@app.route('/api/mis-datos/pdf')
+def api_mis_datos_pdf():
+    from fpdf import FPDF
+    nid  = _nido()
+    conn = get_db()
+    d    = _datos_nido(nid, conn)
+    conn.close()
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # Cabecera
+    pdf.set_fill_color(63, 94, 84)
+    pdf.set_text_color(245, 237, 224)
+    pdf.set_font('Helvetica', 'B', 18)
+    pdf.cell(0, 14, 'Nido  -  Resumen de datos', ln=True, align='C', fill=True)
+    pdf.set_font('Helvetica', '', 9)
+    pdf.cell(0, 7, f'Exportado el {datetime.now().strftime("%d/%m/%Y a las %H:%M")}', ln=True, align='C', fill=True)
+    pdf.ln(6)
+
+    secciones = [
+        ('Gastos', d['gastos'],   ['fecha', 'descripcion', 'monto', 'categoria']),
+        ('Ingresos', d['ingresos'], ['fecha', 'descripcion', 'monto']),
+        ('Metas de ahorro', d['metas'], ['nombre', 'objetivo', 'ahorrado']),
+    ]
+    col_w = {2: [50, 100, 35], 3: [35, 100, 25, 30], 4: [35, 95, 30, 30]}
+
+    for titulo, filas, cols in secciones:
+        pdf.set_text_color(63, 94, 84)
+        pdf.set_font('Helvetica', 'B', 13)
+        pdf.cell(0, 9, titulo, ln=True)
+        pdf.set_draw_color(63, 94, 84)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(2)
+
+        if not filas:
+            pdf.set_text_color(150, 150, 150)
+            pdf.set_font('Helvetica', 'I', 9)
+            pdf.cell(0, 7, 'Sin datos', ln=True)
+        else:
+            anchos = col_w.get(len(cols), [int(190 / len(cols))] * len(cols))
+            pdf.set_fill_color(220, 230, 225)
+            pdf.set_text_color(40, 40, 40)
+            pdf.set_font('Helvetica', 'B', 9)
+            for i, col in enumerate(cols):
+                pdf.cell(anchos[i], 7, col.capitalize(), border=1, fill=True)
+            pdf.ln()
+            pdf.set_font('Helvetica', '', 8)
+            for fila in filas:
+                for i, col in enumerate(cols):
+                    val = str(fila[col] or '')
+                    pdf.cell(anchos[i], 6, val[:40], border=1)
+                pdf.ln()
+        pdf.ln(5)
+
+    pdf.set_text_color(150, 150, 150)
+    pdf.set_font('Helvetica', 'I', 8)
+    pdf.cell(0, 6, 'Generado por Nido by Kreatia  ·  kreatia3d@gmail.com', align='C')
+
+    buf = io.BytesIO(pdf.output())
+    return Response(buf.getvalue(), mimetype='application/pdf',
+        headers={'Content-Disposition': 'attachment; filename=nido_datos.pdf'})
 
 
 # ── Páginas legales ───────────────────────────────────────────────────────────
