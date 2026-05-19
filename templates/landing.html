@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nido — Finanzas en pareja sin fricciones</title>
+<meta name="description" content="Gestiona los gastos de tu hogar de forma sencilla y compartida. Con IA incluida.">
+<style>
+  :root {
+    --bosque: #2D4A3E;
+    --salvia: #5C8374;
+    --crema: #F5EFE6;
+    --terracota: #C1785A;
+    --dorado: #D4A853;
+    --bg: #F0EBE1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #1e293b; }
+
+  /* NAV */
+  nav {
+    background: var(--bosque);
+    padding: 16px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .nav-logo span { font-size: 1.3rem; font-weight: 800; color: var(--crema); letter-spacing: -0.3px; }
+  .nav-logo small { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+  .nav-cta {
+    background: var(--dorado); color: white;
+    padding: 10px 22px; border-radius: 100px;
+    font-weight: 700; font-size: 0.9rem;
+    text-decoration: none; transition: opacity 0.2s;
+  }
+  .nav-cta:hover { opacity: 0.9; }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, var(--bosque) 0%, #1a3a2e 60%, #0f2a1e 100%);
+    padding: 100px 40px 80px;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 60%, rgba(92,131,116,0.25) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(212,168,83,0.1) 0%, transparent 50%);
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(212,168,83,0.15);
+    border: 1px solid rgba(212,168,83,0.4);
+    color: var(--dorado);
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px;
+    padding: 6px 16px; border-radius: 100px;
+    margin-bottom: 24px; position: relative;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 900; color: var(--crema);
+    line-height: 1.15; letter-spacing: -1px;
+    max-width: 700px; margin: 0 auto 20px;
+    position: relative;
+  }
+  .hero h1 em { color: var(--dorado); font-style: normal; }
+  .hero p {
+    font-size: 1.1rem; color: rgba(255,255,255,0.65);
+    max-width: 520px; margin: 0 auto 40px;
+    line-height: 1.7; position: relative;
+  }
+  .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; }
+  .btn-primary {
+    background: var(--dorado); color: white;
+    padding: 16px 32px; border-radius: 100px;
+    font-weight: 700; font-size: 1rem;
+    text-decoration: none; transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(212,168,83,0.4);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(212,168,83,0.5); }
+  .btn-secondary {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white; padding: 16px 32px; border-radius: 100px;
+    font-weight: 600; font-size: 1rem;
+    text-decoration: none; transition: background 0.2s;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.14); }
+
+  /* STATS */
+  .stats {
+    background: white;
+    display: flex; justify-content: center; gap: 60px;
+    padding: 32px 40px;
+    border-bottom: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+  }
+  .stat { text-align: center; }
+  .stat-num { font-size: 2rem; font-weight: 900; color: var(--bosque); }
+  .stat-lbl { font-size: 0.85rem; color: #64748b; margin-top: 2px; }
+
+  /* FEATURES */
+  .section { padding: 80px 40px; max-width: 1100px; margin: 0 auto; }
+  .section-label {
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--salvia); margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    font-weight: 800; color: #0f172a;
+    line-height: 1.2; margin-bottom: 16px;
+  }
+  .section-sub { font-size: 1rem; color: #64748b; max-width: 520px; line-height: 1.7; margin-bottom: 60px; }
+
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+  .feature-card {
+    background: white;
+    border-radius: 20px;
+    padding: 28px;
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .feature-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.08); }
+  .feature-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; margin-bottom: 16px;
+  }
+  .feature-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+  .feature-card p  { font-size: 0.9rem; color: #64748b; line-height: 1.6; }
+
+  /* HOW IT WORKS */
+  .how-bg { background: white; }
+  .steps { display: flex; flex-direction: column; gap: 0; max-width: 600px; }
+  .step { display: flex; gap: 20px; padding: 24px 0; border-bottom: 1px solid #f1f5f9; }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--bosque); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1rem; flex-shrink: 0;
+  }
+  .step h4 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+  .step p  { font-size: 0.9rem; color: #64748b; line-height: 1.6; }
+
+  /* VERA */
+  .vera-section {
+    background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    padding: 80px 40px;
+    text-align: center;
+  }
+  .vera-badge {
+    display: inline-block;
+    background: rgba(124,92,191,0.2);
+    border: 1px solid rgba(124,92,191,0.4);
+    color: #c4b5fd;
+    font-size: 0.8rem; font-weight: 700;
+    padding: 6px 16px; border-radius: 100px;
+    margin-bottom: 20px;
+  }
+  .vera-section h2 { font-size: 2.2rem; font-weight: 800; color: white; margin-bottom: 16px; }
+  .vera-section p { font-size: 1rem; color: rgba(255,255,255,0.6); max-width: 480px; margin: 0 auto 40px; line-height: 1.7; }
+  .chat-demo {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 28px;
+    max-width: 500px; margin: 0 auto;
+    text-align: left;
+  }
+  .msg { display: flex; gap: 10px; margin-bottom: 14px; }
+  .msg.vera { flex-direction: row; }
+  .msg.user { flex-direction: row-reverse; }
+  .msg-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .msg.vera .msg-avatar { background: #7c5cbf; }
+  .msg.user .msg-avatar { background: var(--salvia); }
+  .msg-bubble {
+    padding: 10px 14px; border-radius: 14px;
+    font-size: 0.88rem; line-height: 1.5; max-width: 300px;
+  }
+  .msg.vera .msg-bubble { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); border-radius: 4px 14px 14px 14px; }
+  .msg.user .msg-bubble { background: var(--salvia); color: white; border-radius: 14px 4px 14px 14px; }
+
+  /* PRICING */
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; max-width: 700px; }
+  .plan-card {
+    background: white; border-radius: 20px;
+    padding: 32px; border: 2px solid #e2e8f0;
+    position: relative;
+  }
+  .plan-card.featured {
+    border-color: var(--bosque);
+    box-shadow: 0 8px 32px rgba(45,74,62,0.15);
+  }
+  .plan-badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--bosque); color: white;
+    font-size: 0.75rem; font-weight: 700;
+    padding: 4px 16px; border-radius: 100px;
+  }
+  .plan-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+  .plan-price { font-size: 2.5rem; font-weight: 900; color: var(--bosque); }
+  .plan-price span { font-size: 1rem; font-weight: 500; color: #94a3b8; }
+  .plan-features { list-style: none; margin: 20px 0; }
+  .plan-features li { font-size: 0.9rem; color: #475569; padding: 6px 0; display: flex; gap: 8px; }
+  .plan-features li::before { content: '✓'; color: var(--salvia); font-weight: 700; }
+  .plan-features li.no::before { content: '✕'; color: #cbd5e1; }
+  .plan-features li.no { color: #94a3b8; }
+  .plan-cta {
+    width: 100%; padding: 14px;
+    border-radius: 12px; border: none;
+    font-weight: 700; font-size: 1rem;
+    cursor: pointer; transition: opacity 0.2s;
+  }
+  .plan-cta.free { background: #f1f5f9; color: var(--bosque); }
+  .plan-cta.pro  { background: var(--bosque); color: white; }
+  .plan-cta:hover { opacity: 0.85; }
+
+  /* CTA FINAL */
+  .cta-section {
+    background: var(--bosque);
+    padding: 80px 40px; text-align: center;
+  }
+  .cta-section h2 { font-size: 2.2rem; font-weight: 800; color: var(--crema); margin-bottom: 16px; }
+  .cta-section p { font-size: 1rem; color: rgba(255,255,255,0.6); margin-bottom: 36px; }
+
+  /* FOOTER */
+  footer {
+    background: #0f172a;
+    padding: 40px;
+    text-align: center;
+    color: #475569;
+    font-size: 0.85rem;
+  }
+  footer a { color: #64748b; text-decoration: none; margin: 0 10px; }
+  footer a:hover { color: #94a3b8; }
+
+  @media (max-width: 768px) {
+    nav { padding: 14px 20px; }
+    .hero { padding: 70px 20px 60px; }
+    .stats { gap: 30px; padding: 24px 20px; }
+    .section { padding: 60px 20px; }
+    .hero-btns { flex-direction: column; align-items: center; }
+    .btn-primary, .btn-secondary { width: 100%; max-width: 320px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/landing">
+    <span>🪺 Nido</span>
+    <small>by Kreatia</small>
+  </a>
+  <a class="nav-cta" href="#descarga">Descargar gratis</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">✨ Con IA incluida</div>
+  <h1>Finanzas en pareja <em>sin fricciones</em></h1>
+  <p>Registra gastos, comparte ingresos y alcanza metas de ahorro juntos. Tu asistente financiero con IA está siempre disponible.</p>
+  <div class="hero-btns">
+    <a class="btn-primary" href="#descarga">Descargar para Android</a>
+    <a class="btn-secondary" href="#como-funciona">Ver cómo funciona</a>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-num">100%</div>
+    <div class="stat-lbl">Privado y seguro</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">Gratis</div>
+    <div class="stat-lbl">Para empezar</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">IA</div>
+    <div class="stat-lbl">Asistente incluido</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">2</div>
+    <div class="stat-lbl">Miembros por nido</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section">
+  <div class="section-label">Todo lo que necesitas</div>
+  <h2 class="section-title">Una app para gestionarlo todo juntos</h2>
+  <p class="section-sub">Diseñada desde cero para parejas que quieren claridad sobre sus finanzas sin complicaciones.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#e0f2e9;">💸</div>
+      <h3>Gastos compartidos</h3>
+      <p>Registra cualquier gasto en segundos. Ambos lo veis al instante. Categorías personalizables y dictado por voz.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fef3c7;">📊</div>
+      <h3>Dashboard mensual</h3>
+      <p>Resumen visual de gastos, ingresos y balance. Gráficos de evolución y desglose por categoría.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#ede9fe;">✨</div>
+      <h3>Vera, vuestra IA</h3>
+      <p>Preguntadle cualquier cosa sobre vuestras finanzas. Tiene acceso a todos vuestros datos y responde en lenguaje natural.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fce7f3;">🎯</div>
+      <h3>Metas de ahorro</h3>
+      <p>Cread objetivos compartidos — un viaje, un coche, un colchón. Seguid el progreso juntos.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fff7ed;">💰</div>
+      <h3>Presupuesto por categoría</h3>
+      <p>Fijaos límites mensuales por categoría. Veis el % consumido en tiempo real para no pasaros.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#f0f9ff;">🔔</div>
+      <h3>Notificaciones inteligentes</h3>
+      <p>Aviso cuando tu pareja añade un gasto. Recordatorio de gastos fijos al final de mes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<div class="how-bg" id="como-funciona">
+  <section class="section">
+    <div class="section-label">Primeros pasos</div>
+    <h2 class="section-title">Listo en 2 minutos</h2>
+    <p class="section-sub">Sin tarjeta de crédito, sin formularios largos. Solo Google y ya.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <h4>Entra con Google</h4>
+          <p>Un toque y ya estás dentro. Tus datos siempre seguros con Firebase Auth.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <h4>Crea vuestro nido</h4>
+          <p>Dale un nombre a vuestro espacio compartido. Solo vosotros dos tendréis acceso.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <h4>Invita a tu pareja</h4>
+          <p>Comparte un código de 6 dígitos por WhatsApp. Tu pareja entra en segundos.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div>
+          <h4>Empezad a registrar</h4>
+          <p>Añade gastos, crea metas y preguntadle a Vera. Vuestras finanzas, bajo control.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- VERA -->
+<section class="vera-section">
+  <div class="vera-badge">✨ Inteligencia artificial</div>
+  <h2>Conoced a Vera, vuestra asesora financiera</h2>
+  <p>Vera conoce todos vuestros gastos e ingresos y os ayuda a entender vuestras finanzas en lenguaje natural.</p>
+  <div class="chat-demo">
+    <div class="msg user">
+      <div class="msg-avatar">👤</div>
+      <div class="msg-bubble">¿Cuánto hemos gastado en comida este mes?</div>
+    </div>
+    <div class="msg vera">
+      <div class="msg-avatar">✨</div>
+      <div class="msg-bubble">Este mes habéis gastado <strong>347 € en comida</strong>, un 15% más que el mes pasado. La mayor parte fue en el supermercado (234 €). ¿Queréis que os proponga cómo reducirlo?</div>
+    </div>
+    <div class="msg user">
+      <div class="msg-avatar">👤</div>
+      <div class="msg-bubble">¿Vamos bien con el presupuesto?</div>
+    </div>
+    <div class="msg vera">
+      <div class="msg-avatar">✨</div>
+      <div class="msg-bubble">Lleváis el 68% del presupuesto consumido con 12 días por delante. Si mantenéis el ritmo, acabaréis unos <strong>120 € por encima</strong> del límite. Os recomiendo reducir los gastos variables esta semana.</div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="section">
+  <div class="section-label">Planes</div>
+  <h2 class="section-title">Empieza gratis, crece cuando quieras</h2>
+  <p class="section-sub">El plan gratuito es suficiente para la mayoría de parejas. Nido Pro desbloquea todo sin límites.</p>
+  <div class="pricing-grid">
+    <div class="plan-card">
+      <div class="plan-name">Gratuito</div>
+      <div class="plan-price">0 <span>€/mes</span></div>
+      <ul class="plan-features">
+        <li>Gastos e ingresos ilimitados</li>
+        <li>Dashboard y gráficos</li>
+        <li>Metas de ahorro</li>
+        <li>Invitar a tu pareja</li>
+        <li>Vera IA incluida</li>
+        <li class="no">Informes PDF/Excel</li>
+        <li class="no">Temas exclusivos</li>
+        <li class="no">Soporte prioritario</li>
+      </ul>
+      <button class="plan-cta free">Empezar gratis</button>
+    </div>
+    <div class="plan-card featured">
+      <div class="plan-badge">Más popular</div>
+      <div class="plan-name">Nido Pro</div>
+      <div class="plan-price">2,99 <span>€/mes</span></div>
+      <ul class="plan-features">
+        <li>Todo lo del plan gratuito</li>
+        <li>Vera sin límites de consultas</li>
+        <li>Exportar en PDF, Excel y CSV</li>
+        <li>Historial completo sin límite</li>
+        <li>Temas de color exclusivos</li>
+        <li>Soporte prioritario 24h</li>
+      </ul>
+      <button class="plan-cta pro">Activar Pro — 2,99 €/mes</button>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="descarga">
+  <h2>Empezad hoy mismo 🪺</h2>
+  <p>Gratis. Sin tarjeta. En 2 minutos estáis dentro.</p>
+  <a class="btn-primary" href="#">Descargar para Android</a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p style="margin-bottom:12px;">
+    <a href="/politica-privacidad">Política de privacidad</a>
+    <a href="/terminos">Términos de servicio</a>
+    <a href="mailto:kreatia3d@gmail.com">Contacto</a>
+  </p>
+  <p>© 2026 Nido by Kreatia. Hecho con ❤️ en España.</p>
+</footer>
+
+</body>
+</html>

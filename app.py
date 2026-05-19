@@ -2477,6 +2477,27 @@ def api_mis_datos_pdf():
         headers={'Content-Disposition': 'attachment; filename=nido_datos.pdf'})
 
 
+# ── Versión de la app ─────────────────────────────────────────────────────────
+
+@app.route('/api/version')
+def api_version():
+    return jsonify({
+        'version':      '2.7.0',
+        'build':        25,
+        'min_version':  '2.0.0',
+        'min_build':    1,
+        'force_update': False,
+        'changelog':    'Analytics, valoraciones, pantalla Premium y compartir app',
+    })
+
+
+# ── Landing page ──────────────────────────────────────────────────────────────
+
+@app.route('/landing')
+def landing():
+    return render_template('landing.html')
+
+
 # ── Páginas legales ───────────────────────────────────────────────────────────
 
 @app.route('/politica-privacidad')
