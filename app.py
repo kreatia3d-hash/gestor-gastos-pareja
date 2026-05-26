@@ -484,7 +484,6 @@ _API_PUBLICA = frozenset({
     'paginas.api_version',
     'paginas.api_tunnel',
     'usuarios.api_foto_serve',
-    'paginas.api_admin_reset',
 })
 
 @app.before_request

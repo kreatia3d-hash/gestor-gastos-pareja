@@ -64,39 +64,6 @@ def api_ping():
     return jsonify({'app': 'gestorgastos', 'status': 'ok'})
 
 
-@bp.route('/api/admin/reset/xK9mPq2LrB7wNdE4hFs', methods=['POST'])
-def api_admin_reset():
-    """Endpoint temporal de reset total. Se eliminará tras el primer uso."""
-    import db as _db
-    from flask import current_app
-    _db.set_db_path(current_app.config['DB_PATH'])
-
-    tablas_orden = [
-        'aportaciones_meta', 'gastos', 'ingresos', 'presupuestos',
-        'notificaciones', 'metas_ahorro', 'invitaciones',
-        'firebase_users', 'usuarios', 'categorias_gasto', 'nidos', 'config',
-    ]
-    resultados = {}
-    conn = _db.get_db()
-    for t in tablas_orden:
-        try:
-            conn.execute(f"DELETE FROM {t}")
-            resultados[t] = 'ok'
-        except Exception as e:
-            resultados[t] = f'skip: {e}'
-    conn.commit()
-
-    counts = {}
-    for t in tablas_orden:
-        try:
-            row = conn.execute(f"SELECT COUNT(*) as c FROM {t}").fetchone()
-            counts[t] = row['c'] if row else -1
-        except Exception:
-            counts[t] = 'n/a'
-    conn.close()
-    return jsonify({'ok': True, 'resultado': resultados, 'filas_restantes': counts})
-
-
 @bp.route('/api/version')
 def api_version():
     return jsonify({
