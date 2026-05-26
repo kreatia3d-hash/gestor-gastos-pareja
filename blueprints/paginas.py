@@ -67,30 +67,34 @@ def api_ping():
 @bp.route('/api/admin/reset/xK9mPq2LrB7wNdE4hFs', methods=['POST'])
 def api_admin_reset():
     """Endpoint temporal de reset total. Se eliminará tras el primer uso."""
-    import os, sqlite3 as _sq
-    db_path = os.path.join(os.environ.get('DATA_DIR', '.'), 'gastos.db')
-    conn = _sq.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = [r[0] for r in cur.fetchall()]
-    deleted = {}
-    for t in tables:
+    import db as _db
+    from flask import current_app
+    _db.set_db_path(current_app.config['DB_PATH'])
+
+    tablas_orden = [
+        'aportaciones_meta', 'gastos', 'ingresos', 'presupuestos',
+        'notificaciones', 'metas_ahorro', 'invitaciones',
+        'firebase_users', 'usuarios', 'categorias_gasto', 'nidos', 'config',
+    ]
+    resultados = {}
+    conn = _db.get_db()
+    for t in tablas_orden:
         try:
-            cur.execute(f"DELETE FROM {t}")
-            deleted[t] = conn.total_changes
+            conn.execute(f"DELETE FROM {t}")
+            resultados[t] = 'ok'
         except Exception as e:
-            deleted[t] = f'error: {e}'
+            resultados[t] = f'skip: {e}'
     conn.commit()
-    # Verificar
+
     counts = {}
-    for t in tables:
+    for t in tablas_orden:
         try:
-            cur.execute(f"SELECT COUNT(*) FROM {t}")
-            counts[t] = cur.fetchone()[0]
+            row = conn.execute(f"SELECT COUNT(*) as c FROM {t}").fetchone()
+            counts[t] = row['c'] if row else -1
         except Exception:
-            counts[t] = -1
+            counts[t] = 'n/a'
     conn.close()
-    return jsonify({'ok': True, 'tablas': tables, 'filas_restantes': counts})
+    return jsonify({'ok': True, 'resultado': resultados, 'filas_restantes': counts})
 
 
 @bp.route('/api/version')
