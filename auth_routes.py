@@ -2,7 +2,7 @@
 Auth layer para Nido – Google (Firebase) Sign-In + JWT propio.
 Todas las rutas nuevas de auth, nido e invitaciones van aquí.
 """
-import os, uuid, json, random
+import os, uuid, json, secrets
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -19,7 +19,9 @@ except ImportError:
 
 auth_bp = Blueprint('auth', __name__)
 
-JWT_SECRET          = os.environ.get('JWT_SECRET', 'nido-secret-cambia-en-produccion-2025')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    raise RuntimeError('JWT_SECRET no configurado en variables de entorno. Añádelo en Railway antes de desplegar.')
 FIREBASE_WEB_API_KEY = os.environ.get('FIREBASE_WEB_API_KEY', '')
 BASE_URL            = os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'web-production-2694.up.railway.app')
 
@@ -100,8 +102,7 @@ def requiere_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not _DEPS_OK:
-            g.nido_id = 1; g.user_id = 1; g.firebase_uid = ''
-            return f(*args, **kwargs)
+            return jsonify({'error': 'Servicio de autenticación no disponible'}), 503
         auth = request.headers.get('Authorization', '')
         if not auth.startswith('Bearer '):
             return jsonify({'error': 'No autorizado'}), 401
@@ -114,32 +115,6 @@ def requiere_auth(f):
             return jsonify({'error': 'Token inválido o expirado'}), 401
         return f(*args, **kwargs)
     return decorated
-
-
-# ── /api/auth/debug ──────────────────────────────────────────────────────────
-
-@auth_bp.route('/api/auth/debug', methods=['GET'])
-def api_auth_debug():
-    """Endpoint temporal para diagnosticar configuración de Firebase."""
-    api_key = FIREBASE_WEB_API_KEY
-    result = {
-        'deps_ok': _DEPS_OK,
-        'firebase_key_set': bool(api_key),
-        'firebase_key_prefix': api_key[:12] + '...' if api_key else None,
-        'firebase_project_id': os.environ.get('FIREBASE_PROJECT_ID', 'NO CONFIGURADO'),
-        'jwt_secret_set': bool(JWT_SECRET and JWT_SECRET != 'nido-secret-cambia-en-produccion-2025'),
-    }
-    if api_key and _DEPS_OK:
-        try:
-            resp = _req.post(
-                f'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={api_key}',
-                json={'idToken': 'test'},
-                timeout=8
-            )
-            result['firebase_api_response'] = resp.json().get('error', {}).get('message', 'OK')
-        except Exception as e:
-            result['firebase_api_response'] = f'ERROR: {e}'
-    return jsonify(result)
 
 
 # ── /api/auth/google ──────────────────────────────────────────────────────────
@@ -276,6 +251,21 @@ def api_nido_info():
     })
 
 
+@auth_bp.route('/api/nido/plan', methods=['POST'])
+@requiere_auth
+def api_nido_plan():
+    """Actualiza el plan del nido ('free' o 'pro'). Lo llama Flutter tras una compra RevenueCat."""
+    d = request.get_json(silent=True) or {}
+    plan = d.get('plan', '').lower()
+    if plan not in ('free', 'pro'):
+        return jsonify({'error': 'plan inválido'}), 400
+    conn = _get_db()
+    conn.execute("UPDATE nidos SET plan=? WHERE id=?", (plan, g.nido_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'plan': plan})
+
+
 @auth_bp.route('/api/nido/crear', methods=['POST'])
 def api_nido_crear():
     """Crea un nido nuevo para un usuario que acaba de registrarse.
@@ -366,7 +356,7 @@ def api_nido_invitar():
         "UPDATE invitaciones SET estado='expirada' WHERE nido_id=? AND estado='pendiente'",
         (g.nido_id,)
     )
-    token = f'{random.randint(100000, 999999)}'
+    token = secrets.token_urlsafe(16)
     expires = (datetime.utcnow() + timedelta(days=7)).isoformat()
     conn.execute(
         'INSERT INTO invitaciones (nido_id, creada_por, token, expires_at) VALUES(?,?,?,?)',
@@ -497,6 +487,40 @@ def api_invitacion_aceptar(token):
     })
 
 
+# ── /api/referidos  Programa de referidos ────────────────────────────────────
+
+@auth_bp.route('/api/referidos', methods=['GET'])
+@requiere_auth
+def api_referidos():
+    """Devuelve el número de amigos que se han unido via invitación del usuario actual."""
+    conn = _get_db()
+    total = conn.execute(
+        "SELECT COUNT(*) as c FROM invitaciones WHERE creada_por=? AND estado='aceptada'",
+        (g.user_id,)
+    ).fetchone()['c']
+    conn.close()
+    return jsonify({'total_referidos': total, 'user_id': g.user_id})
+
+
+# ── /.well-known/assetlinks.json  (Android App Links verification) ───────────
+
+@auth_bp.route('/.well-known/assetlinks.json', methods=['GET'])
+def assetlinks():
+    """Permite que Android verifique el App Link y abra la app directamente."""
+    from flask import Response
+    data = json.dumps([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.gestorgastos.gastos_en_pareja",
+            "sha256_cert_fingerprints": [
+                "12:26:82:A1:4B:80:1A:1E:C9:88:48:37:0A:8C:1A:4D:23:48:F0:DF:31:43:BF:A6:59:BC:90:4F:79:BA:A5:D9"
+            ]
+        }
+    }])
+    return Response(data, mimetype='application/json')
+
+
 # ── /invite/<token>  Web landing page ────────────────────────────────────────
 
 @auth_bp.route('/invite/<token>', methods=['GET'])
@@ -532,22 +556,22 @@ def _render_invite(valida, token, invitado_por, download_url):
         content = f'''
       <span class="nido-icon">🪺</span>
       <div class="invite-label">Invitación personal</div>
-      <h1>{invitado_por} quiere compartir el nido contigo</h1>
-      <p class="desc">Gestiona el dinero en pareja de forma sencilla y sin discusiones.
-        Gastos compartidos, metas de ahorro, y siempre al día — todo en un mismo lugar.</p>
-      <div class="features">
-        <div class="feature"><span class="feature-icon">💸</span>
-          <span class="feature-text">Registra y divide gastos al instante</span></div>
-        <div class="feature"><span class="feature-icon">🎯</span>
-          <span class="feature-text">Crea metas de ahorro compartidas</span></div>
-        <div class="feature"><span class="feature-icon">🔒</span>
-          <span class="feature-text">Privado — solo vosotros dos lo veis</span></div>
+      <h1>{invitado_por} te invita a su nido</h1>
+      <p class="desc">Gestiona el dinero en pareja de forma sencilla. Gastos, metas de ahorro y
+        balances — todo compartido.</p>
+
+      <div class="codigo-box">
+        <div class="codigo-label">Tu código de invitación</div>
+        <div class="codigo-valor">{token}</div>
+        <div class="codigo-hint">Introdúcelo en la app al unirte</div>
       </div>
+
       {dl_btn}
-      <a href="nido://invite/{token}" class="btn btn-primary">
-        <span>🪺</span> Ya tengo la app — Unirme
+      <a href="nido://invite/{token}" class="btn btn-primary" id="btn-abrir">
+        <span>🪺</span> Abrir en Nido
       </a>
-      <p class="hint">Descarga la app, inicia sesión con Google y vuelve aquí para unirte.</p>'''
+      <p class="hint">Si tienes Nido instalado, pulsa el botón de arriba.<br>
+        Si no, descarga la app, entra con Google y usa el código <strong>{token}</strong>.</p>'''
     else:
         content = f'''
       <span class="nido-icon">⏳</span>
@@ -600,7 +624,11 @@ def _render_invite(valida, token, invitado_por, download_url):
     .btn-download:hover{{transform:translateY(-1px)}}
     .hint{{text-align:center;color:#9BA8A3;font-size:12px;line-height:1.6;margin-top:4px}}
     .footer{{text-align:center;margin-top:20px;color:rgba(245,237,224,.35);font-size:12px}}
-    @media(max-width:480px){{.card{{padding:32px 24px 28px}}h1{{font-size:20px}}}}
+    .codigo-box{{background:var(--bosque);border-radius:16px;padding:20px;margin-bottom:20px;text-align:center}}
+    .codigo-label{{color:rgba(245,237,224,.6);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}}
+    .codigo-valor{{font-family:'Fraunces',serif;font-size:42px;font-weight:700;color:var(--dorado);letter-spacing:6px}}
+    .codigo-hint{{color:rgba(245,237,224,.5);font-size:11px;margin-top:6px}}
+    @media(max-width:480px){{.card{{padding:32px 24px 28px}}h1{{font-size:20px}}.codigo-valor{{font-size:36px}}}}
   </style>
 </head>
 <body>
