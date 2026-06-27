@@ -3,7 +3,7 @@
 {% block page_title %}{% if gasto %}Editar Gasto{% else %}Nuevo Gasto{% endif %}{% endblock %}
 
 {% block topbar_actions %}
-<a href="{{ url_for('gastos') }}" class="btn btn-sm btn-outline-secondary">
+<a href="{{ url_for('paginas.gastos') }}" class="btn btn-sm btn-outline-secondary">
   <i class="bi bi-arrow-left me-1"></i> Volver
 </a>
 {% endblock %}
@@ -110,7 +110,7 @@
           </div>
 
           <div class="d-grid">
-            <button type="submit" class="btn btn-primary" style="min-height:48px">
+            <button type="submit" class="btn btn-nido-expense w-100" style="min-height:48px">
               <i class="bi bi-check-lg me-1"></i>
               {% if gasto %}Guardar cambios{% else %}Registrar gasto{% endif %}
             </button>

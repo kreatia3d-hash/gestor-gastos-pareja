@@ -3,7 +3,7 @@
 {% block page_title %}Metas de Ahorro{% endblock %}
 
 {% block topbar_actions %}
-<a href="{{ url_for('meta_nueva') }}" class="btn btn-primary btn-sm">
+<a href="{{ url_for('paginas.meta_nueva') }}" class="btn btn-primary btn-sm">
   <i class="bi bi-plus-lg me-1"></i> Nueva meta
 </a>
 {% endblock %}
@@ -17,13 +17,13 @@
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-label">Metas activas</div>
-      <div class="stat-value text-primary">{{ metas_activas|length }}</div>
+      <div class="stat-value text-saving">{{ metas_activas|length }}</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-label">Completadas</div>
-      <div class="stat-value text-success">{{ metas_completadas|length }}</div>
+      <div class="stat-value text-income">{{ metas_completadas|length }}</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
@@ -35,7 +35,7 @@
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-label">Total ahorrado</div>
-      <div class="stat-value text-success">{{ "%.2f"|format(metas_activas | sum(attribute='importe_actual')) }} €</div>
+      <div class="stat-value text-income">{{ "%.2f"|format(metas_activas | sum(attribute='importe_actual')) }} €</div>
     </div>
   </div>
 </div>
@@ -54,14 +54,14 @@
             {% if m.descripcion %}<small class="text-muted">{{ m.descripcion }}</small>{% endif %}
           </div>
           <div class="d-flex gap-1">
-            <a href="{{ url_for('meta_abonar', mid=m.id) }}" class="btn btn-sm btn-primary py-0 px-2" title="Aportar">
+            <a href="{{ url_for('paginas.meta_abonar', mid=m.id) }}" class="btn btn-sm btn-primary py-0 px-2" title="Aportar">
               <i class="bi bi-plus-lg"></i>
             </a>
-            <a href="{{ url_for('meta_editar', mid=m.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+            <a href="{{ url_for('paginas.meta_editar', mid=m.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
               <i class="bi bi-pencil"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger py-0 px-2"
-              onclick="confirmarEliminar('{{ url_for('meta_eliminar', mid=m.id) }}', 'Eliminar la meta: {{ m.nombre }}?')">
+              onclick="confirmarEliminar('{{ url_for('paginas.meta_eliminar', mid=m.id) }}', 'Eliminar la meta: {{ m.nombre }}?')">
               <i class="bi bi-trash"></i>
             </button>
           </div>
@@ -102,9 +102,9 @@
 <div class="card mb-4">
   <div class="card-body text-center py-5">
     <i class="bi bi-bullseye fs-1 text-muted d-block mb-2"></i>
-    <p class="text-muted mb-3">No tienes metas de ahorro activas</p>
-    <a href="{{ url_for('meta_nueva') }}" class="btn btn-primary">
-      <i class="bi bi-plus-lg me-1"></i> Crear primera meta
+    <p class="text-muted mb-3">Aún no hay huevos en el nido. Crea vuestra primera meta.</p>
+    <a href="{{ url_for('paginas.meta_nueva') }}" class="btn btn-nido-saving">
+      <i class="bi bi-plus-lg me-1"></i> Poner el primer huevo
     </a>
   </div>
 </div>
@@ -120,7 +120,7 @@
         <h6 class="mb-0 fw-700"><i class="bi bi-piggy-bank me-2 text-secondary"></i>Ahorro General</h6>
         <small class="text-muted">Ahorros registrados sin asignar a ninguna meta</small>
       </div>
-      <span class="fw-bold text-success fs-5">{{ "%.2f"|format(ahorro_general_total) }} €</span>
+      <span class="fw-bold text-income fs-5">{{ "%.2f"|format(ahorro_general_total) }} €</span>
     </div>
     <div class="table-responsive d-none d-md-block">
       <table class="table table-sm mb-0">
@@ -137,14 +137,14 @@
               {% else %}<span class="text-muted" style="font-size:.8rem">Compartido</span>{% endif %}
             </td>
             <td style="font-size:.83rem;color:#6c757d">{{ a.notas or '—' }}</td>
-            <td class="text-end fw-bold text-success">+{{ "%.2f"|format(a.importe) }} €</td>
+            <td class="text-end fw-bold text-income">+{{ "%.2f"|format(a.importe) }} €</td>
             <td class="text-end">
               <div class="d-flex gap-1 justify-content-end">
-                <a href="{{ url_for('gasto_editar', gid=a.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                <a href="{{ url_for('paginas.gasto_editar', gid=a.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
                   <i class="bi bi-pencil" style="font-size:.8rem"></i>
                 </a>
                 <button class="btn btn-sm btn-outline-danger py-0 px-2"
-                  onclick="confirmarEliminar('{{ url_for('gasto_eliminar', gid=a.id) }}', 'Eliminar este ahorro de {{ "%.2f"|format(a.importe) }} €?')">
+                  onclick="confirmarEliminar('{{ url_for('paginas.gasto_eliminar', gid=a.id) }}', 'Eliminar este ahorro de {{ "%.2f"|format(a.importe) }} €?')">
                   <i class="bi bi-trash" style="font-size:.8rem"></i>
                 </button>
               </div>
@@ -164,12 +164,12 @@
             <div style="font-size:.75rem;color:#adb5bd">{{ a.fecha[:7] }}{% if a.notas %} · {{ a.notas }}{% endif %}</div>
           </div>
           <div class="d-flex align-items-center gap-2">
-            <span class="fw-bold text-success">+{{ "%.2f"|format(a.importe) }} €</span>
-            <a href="{{ url_for('gasto_editar', gid=a.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+            <span class="fw-bold text-income">+{{ "%.2f"|format(a.importe) }} €</span>
+            <a href="{{ url_for('paginas.gasto_editar', gid=a.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
               <i class="bi bi-pencil" style="font-size:.8rem"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger py-0 px-2"
-              onclick="confirmarEliminar('{{ url_for('gasto_eliminar', gid=a.id) }}', 'Eliminar ahorro de {{ "%.2f"|format(a.importe) }} €?')">
+              onclick="confirmarEliminar('{{ url_for('paginas.gasto_eliminar', gid=a.id) }}', 'Eliminar ahorro de {{ "%.2f"|format(a.importe) }} €?')">
               <i class="bi bi-trash" style="font-size:.8rem"></i>
             </button>
           </div>
@@ -195,9 +195,9 @@
             <span class="badge bg-success ms-2" style="font-size:.72rem">Completada</span>
           </div>
           <div class="d-flex gap-1 align-items-center">
-            <span class="fw-bold text-success">{{ "%.2f"|format(m.importe_objetivo) }} €</span>
+            <span class="fw-bold text-income">{{ "%.2f"|format(m.importe_objetivo) }} €</span>
             <button class="btn btn-sm btn-outline-danger py-0 px-2 ms-1"
-              onclick="confirmarEliminar('{{ url_for('meta_eliminar', mid=m.id) }}', 'Eliminar meta: {{ m.nombre }}?')">
+              onclick="confirmarEliminar('{{ url_for('paginas.meta_eliminar', mid=m.id) }}', 'Eliminar meta: {{ m.nombre }}?')">
               <i class="bi bi-trash"></i>
             </button>
           </div>

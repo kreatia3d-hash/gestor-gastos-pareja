@@ -19,3 +19,7 @@ gestor_gastos_apk/
 # VS Code / sistema
 .vscode/
 Thumbs.db
+
+# Backups / datos locales
+*.bak
+backup_datos.json

@@ -3,23 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Seleccionar usuario — Gastos en Pareja</title>
+  <title>Nido · Bienvenidos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body style="background: linear-gradient(135deg, #1a1f2e 0%, #2d3555 100%); min-height: 100vh; display:flex; align-items:center; justify-content:center;">
+<body style="background: linear-gradient(135deg, #3F5E54 0%, #2D2D2D 100%); min-height: 100vh; display:flex; align-items:center; justify-content:center; font-family:'Inter',system-ui,sans-serif;">
 <div style="max-width: 480px; width: 100%; padding: 1.25rem;">
-  <div style="color:#fff; font-size:1.7rem; font-weight:800; text-align:center; margin-bottom:.3rem;">
-    <i class="bi bi-heart-half text-danger me-2"></i>Gastos en Pareja
+  <div class="text-center mb-4">
+    <img src="{{ url_for('static', filename='nido-logo.svg') }}"
+         alt="Nido" style="width:64px;height:64px;background:#F5EDE0;border-radius:12px;padding:6px;display:block;margin:0 auto 0.75rem;">
+    <div style="color:#fff; font-family:'Fraunces',serif; font-size:2rem; font-weight:600; margin-bottom:.25rem;">Nido</div>
+    <p style="color:rgba(255,255,255,.6); font-size:.9rem; margin-bottom:0;">¿Quién entra hoy?</p>
   </div>
-  <p style="color:rgba(255,255,255,.55); text-align:center; font-size:.9rem; margin-bottom:2rem;">
-    Selecciona quien eres para continuar
-  </p>
   <div class="row g-3">
     {% for u in usuarios %}
     <div class="col-6">
-      <a href="{{ url_for('set_usuario', uid=u.id) }}" class="user-select-card" style="border-color:{{ u.color }};">
+      <a href="{{ url_for('paginas.set_usuario', uid=u.id) }}" class="user-select-card" style="border-color:{{ u.color }};">
         <div class="user-avatar" style="background:{{ u.color }}22; color:{{ u.color }}">
           <i class="bi bi-{{ u.emoji }}"></i>
         </div>
@@ -34,7 +38,7 @@
     {% endfor %}
   </div>
   <p style="color:rgba(255,255,255,.25); text-align:center; font-size:.75rem; margin-top:1.5rem;">
-    Los datos se comparten entre ambos usuarios
+    Los datos se comparten entre ambos
   </p>
 </div>
 </body>

@@ -67,12 +67,12 @@ def api_ping():
 @bp.route('/api/version')
 def api_version():
     return jsonify({
-        'version':      '2.8.1',
-        'build':        29,
-        'min_version':  '2.0.0',
-        'min_build':    1,
+        'version':      '3.1.6',
+        'build':        39,
+        'min_version':  '3.1.0',
+        'min_build':    33,
         'force_update': False,
-        'changelog':    'Seguridad: todos los endpoints protegidos con JWT, timeouts en llamadas API',
+        'changelog':    'Mejoras de estabilidad y corrección de errores',
         'download_url': os.environ.get('DOWNLOAD_APK_URL', ''),
     })
 

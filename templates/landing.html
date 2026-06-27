@@ -14,6 +14,7 @@
     --dorado: #D4A853;
     --bg: #F0EBE1;
   }
+  html { scroll-behavior: smooth; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #1e293b; }
 
@@ -407,11 +408,13 @@
       <div class="plan-name">Gratuito</div>
       <div class="plan-price">0 <span>€/mes</span></div>
       <ul class="plan-features">
-        <li>Gastos e ingresos ilimitados</li>
+        <li>Hasta 50 gastos / mes</li>
+        <li>Hasta 10 ingresos / mes</li>
+        <li>Hasta 3 metas de ahorro</li>
         <li>Dashboard y gráficos</li>
-        <li>Metas de ahorro</li>
         <li>Invitar a tu pareja</li>
-        <li>Vera IA incluida</li>
+        <li>Vera IA (consultas limitadas)</li>
+        <li class="no">Gastos e ingresos ilimitados</li>
         <li class="no">Informes PDF/Excel</li>
         <li class="no">Temas exclusivos</li>
         <li class="no">Soporte prioritario</li>
@@ -435,6 +438,57 @@
   </div>
 </section>
 
+<!-- FAQ -->
+<div class="how-bg" id="faq">
+  <section class="section">
+    <div class="section-label">Preguntas frecuentes</div>
+    <h2 class="section-title">¿Tenéis dudas?</h2>
+    <p class="section-sub">Lo más habitual que nos preguntan antes de empezar.</p>
+    <div style="max-width:680px;display:flex;flex-direction:column;gap:16px;">
+      <details style="background:white;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;">
+        <summary style="font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+          ¿Es realmente gratis? <span style="color:var(--salvia);font-size:1.4rem;line-height:1;">+</span>
+        </summary>
+        <p style="margin-top:12px;color:#64748b;font-size:0.95rem;line-height:1.7;">
+          Sí. El plan gratuito no requiere tarjeta y es funcional desde el primer día. El plan Pro desbloquea registros ilimitados, exportaciones y soporte prioritario por 2,99 €/mes.
+        </p>
+      </details>
+      <details style="background:white;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;">
+        <summary style="font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+          ¿Mis datos financieros están seguros? <span style="color:var(--salvia);font-size:1.4rem;line-height:1;">+</span>
+        </summary>
+        <p style="margin-top:12px;color:#64748b;font-size:0.95rem;line-height:1.7;">
+          Sí. Usamos Firebase Auth (de Google) para la autenticación y toda la comunicación va cifrada por HTTPS. Nunca vendemos tus datos ni los usamos para publicidad.
+        </p>
+      </details>
+      <details style="background:white;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;">
+        <summary style="font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+          ¿Solo disponible para Android? <span style="color:var(--salvia);font-size:1.4rem;line-height:1;">+</span>
+        </summary>
+        <p style="margin-top:12px;color:#64748b;font-size:0.95rem;line-height:1.7;">
+          De momento sí, en Google Play. La versión iOS está en nuestra hoja de ruta para finales de 2026.
+        </p>
+      </details>
+      <details style="background:white;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;">
+        <summary style="font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+          ¿Qué pasa si nos separamos? <span style="color:var(--salvia);font-size:1.4rem;line-height:1;">+</span>
+        </summary>
+        <p style="margin-top:12px;color:#64748b;font-size:0.95rem;line-height:1.7;">
+          Puedes exportar todos tus datos en cualquier momento (plan Pro) o solicitar la eliminación de tu cuenta desde Configuración. No hay penalización por cancelar.
+        </p>
+      </details>
+      <details style="background:white;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;">
+        <summary style="font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+          ¿Vera tiene acceso a mi cuenta bancaria? <span style="color:var(--salvia);font-size:1.4rem;line-height:1;">+</span>
+        </summary>
+        <p style="margin-top:12px;color:#64748b;font-size:0.95rem;line-height:1.7;">
+          No. Vera solo analiza los datos que vosotros introducís manualmente en la app. Nido no se conecta a ningún banco ni plataforma financiera externa.
+        </p>
+      </details>
+    </div>
+  </section>
+</div>
+
 <!-- CTA -->
 <section class="cta-section" id="descarga">
   <h2>Empezad hoy mismo 🪺</h2>
@@ -444,10 +498,20 @@
 
 <!-- FOOTER -->
 <footer>
+  <p style="margin-bottom:14px;">
+    <strong style="color:#94a3b8;font-size:1rem;">🪺 Nido by Kreatia</strong>
+  </p>
   <p style="margin-bottom:12px;">
     <a href="/politica-privacidad">Política de privacidad</a>
     <a href="/terminos">Términos de servicio</a>
     <a href="mailto:kreatia3d@gmail.com">Contacto</a>
+    <a href="#faq">FAQ</a>
+  </p>
+  <p style="margin-bottom:10px;color:#374151;font-size:0.8rem;">Síguenos en redes sociales</p>
+  <p style="margin-bottom:16px;">
+    <a href="https://www.instagram.com/kreatia3d" target="_blank" rel="noopener">Instagram</a>
+    <a href="https://www.tiktok.com/@kreatia3d" target="_blank" rel="noopener">TikTok</a>
+    <a href="https://www.youtube.com/@kreatia3d" target="_blank" rel="noopener">YouTube</a>
   </p>
   <p>© 2026 Nido by Kreatia. Hecho con ❤️ en España.</p>
 </footer>

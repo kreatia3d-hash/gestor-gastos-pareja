@@ -4,9 +4,9 @@
 
 {% block topbar_actions %}
 <div class="mes-selector">
-  <a href="{{ url_for('resumen', anio=anio-1) }}"><i class="bi bi-chevron-left"></i></a>
+  <a href="{{ url_for('paginas.resumen', anio=anio-1) }}"><i class="bi bi-chevron-left"></i></a>
   <span class="mes-actual">{{ anio }}</span>
-  <a href="{{ url_for('resumen', anio=anio+1) }}"><i class="bi bi-chevron-right"></i></a>
+  <a href="{{ url_for('paginas.resumen', anio=anio+1) }}"><i class="bi bi-chevron-right"></i></a>
 </div>
 {% endblock %}
 
@@ -54,7 +54,7 @@
             {% for m in meses_data %}
             <tr>
               <td>
-                <a href="{{ url_for('dashboard', mes=m.mes_num, anio=anio) }}" class="text-decoration-none fw-500">
+                <a href="{{ url_for('paginas.dashboard', mes=m.mes_num, anio=anio) }}" class="text-decoration-none fw-500">
                   {{ m.mes }}
                 </a>
               </td>

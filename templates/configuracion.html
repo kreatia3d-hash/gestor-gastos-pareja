@@ -29,7 +29,7 @@
       <div class="card-header"><i class="bi bi-people text-primary me-1"></i> Usuarios</div>
       <div class="card-body">
         {% for u in usuarios %}
-        <div class="p-3 rounded mb-4" style="background:#f8f9fe;border:1.5px solid {{ u.color }}40">
+        <div class="p-3 rounded mb-4" style="background:var(--nido-crema-soft);border:1.5px solid {{ u.color }}40">
           <!-- Avatar + foto de perfil -->
           <div class="d-flex align-items-center gap-3 mb-3">
             {% if u.foto %}
@@ -43,7 +43,7 @@
             <div>
               <span style="color:{{ u.color }};font-weight:700;font-size:1rem">{{ u.nombre }}</span>
               {% if u.id == usuario_actual.id %}
-              <form method="POST" action="{{ url_for('usuario_foto', uid=u.id) }}" enctype="multipart/form-data" class="mt-1">
+              <form method="POST" action="{{ url_for('paginas.usuario_foto', uid=u.id) }}" enctype="multipart/form-data" class="mt-1">
                 <label class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.77rem;cursor:pointer">
                   <i class="bi bi-camera me-1"></i>Cambiar foto
                   <input type="file" name="foto" accept="image/*" style="display:none" onchange="this.form.submit()">
@@ -161,7 +161,7 @@
         </div>
 
         <!-- Nueva categoria -->
-        <div class="p-3 rounded" style="background:#f8f9fe;border:1.5px dashed #d1d5db">
+        <div class="p-3 rounded" style="background:var(--nido-crema-soft);border:1.5px dashed var(--nido-salvia-light)">
           <p class="fw-600 mb-2" style="font-size:.88rem"><i class="bi bi-plus-circle me-1 text-primary"></i> Nueva categoria</p>
           <form method="POST">
             <input type="hidden" name="accion" value="nueva_categoria">
@@ -170,7 +170,7 @@
                 <input type="text" class="form-control form-control-sm" name="nombre" placeholder="Nombre" required>
               </div>
               <div class="col-4">
-                <input type="color" class="form-control form-control-color form-control-sm w-100" name="color" value="#4f8ef7">
+                <input type="color" class="form-control form-control-color form-control-sm w-100" name="color" value="#5C8374">
               </div>
             </div>
             <!-- Icon picker categoria -->
@@ -207,7 +207,7 @@
           <!-- Red local -->
           <div class="col-12 col-md-5">
             <p class="fw-600 mb-1" style="font-size:.88rem"><i class="bi bi-wifi me-1 text-primary"></i> Misma red WiFi</p>
-            <div class="p-2 rounded mb-1" style="background:#1a1f2e;color:#4f8ef7;font-family:monospace;font-size:.92rem">
+            <div class="p-2 rounded mb-1" style="background:#2D2D2D;color:#93B5A8;font-family:monospace;font-size:.92rem">
               http://{{ local_ip }}:5001
             </div>
             <small class="text-muted" style="font-size:.77rem">Abre esta direccion en el movil conectado a la misma WiFi.</small>

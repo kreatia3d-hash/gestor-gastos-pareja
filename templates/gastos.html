@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Gastos — Gastos en Pareja{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Gastos â€” Nido{% endblock %}
 {% block page_title %}Gastos · {{ nombre_mes }} {{ anio }}{% endblock %}
 
 {% block topbar_actions %}
@@ -8,11 +8,11 @@
   {% set ap = anio if mes > 1 else anio - 1 %}
   {% set mn = mes + 1 if mes < 12 else 1 %}
   {% set an = anio if mes < 12 else anio + 1 %}
-  <a href="{{ url_for('gastos', mes=mp, anio=ap) }}"><i class="bi bi-chevron-left"></i></a>
+  <a href="{{ url_for('paginas.gastos', mes=mp, anio=ap) }}"><i class="bi bi-chevron-left"></i></a>
   <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
-  <a href="{{ url_for('gastos', mes=mn, anio=an) }}"><i class="bi bi-chevron-right"></i></a>
+  <a href="{{ url_for('paginas.gastos', mes=mn, anio=an) }}"><i class="bi bi-chevron-right"></i></a>
 </div>
-<a href="{{ url_for('gasto_nuevo') }}" class="btn btn-primary btn-sm d-none d-md-inline-flex align-items-center gap-1">
+<a href="{{ url_for('paginas.gasto_nuevo') }}" class="btn btn-primary btn-sm d-none d-md-inline-flex align-items-center gap-1">
   <i class="bi bi-plus-lg"></i> Nuevo gasto
 </a>
 {% endblock %}
@@ -51,7 +51,7 @@
         </select>
       </div>
       <div class="col-6 col-md-3 text-end">
-        <a href="{{ url_for('gastos', mes=mes, anio=anio) }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        <a href="{{ url_for('paginas.gastos', mes=mes, anio=anio) }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
       </div>
     </form>
   </div>
@@ -61,7 +61,7 @@
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-list-ul me-1 text-primary"></i> {{ gastos|length }} gasto(s)</span>
-    <span class="fw-bold text-danger">Total: {{ "%.2f"|format(total) }} €</span>
+    <span class="fw-bold text-expense">Total: {{ "%.2f"|format(total) }} €</span>
   </div>
 
   <!-- VISTA ESCRITORIO: tabla -->
@@ -83,7 +83,7 @@
           <td>
             <span class="fw-500">{{ g.descripcion }}</span>
             {% if g.es_fijo %}<span class="badge-fijo ms-1"><i class="bi bi-repeat me-1"></i>Fijo</span>{% endif %}
-            {% if g.meta_id %}<span class="badge ms-1" style="background:#0d6efd22;color:#0d6efd;border:1px solid #0d6efd55;font-size:.7rem"><i class="bi bi-piggy-bank me-1"></i>Meta</span>{% endif %}
+            {% if g.meta_id %}<span class="badge ms-1" style="background:#FAEFD3;color:#E8B86D;border:1px solid #E8B86D55;font-size:.7rem"><i class="bi bi-piggy-bank me-1"></i>Meta</span>{% endif %}
             {% if g.notas %}<br><small class="text-muted">{{ g.notas }}</small>{% endif %}
           </td>
           <td>
@@ -91,7 +91,7 @@
             <span class="badge-cat" style="background:{{ g.ccolor }}22;color:{{ g.ccolor }};border:1px solid {{ g.ccolor }}55">
               <i class="{{ g.cicono }} me-1"></i>{{ g.cnombre }}
             </span>
-            {% else %}<span class="text-muted">—</span>{% endif %}
+            {% else %}<span class="text-muted">â€”</span>{% endif %}
           </td>
           <td>
             {% if g.unombre %}
@@ -103,21 +103,21 @@
             {% endif %}
           </td>
           <td><span style="font-size:.83rem;color:#6c757d">{{ g.fecha[:7] }}</span></td>
-          <td class="text-end fw-bold text-danger">{{ "%.2f"|format(g.importe) }} €</td>
+          <td class="text-end fw-bold text-expense">{{ "%.2f"|format(g.importe) }} €</td>
           <td class="text-end" style="white-space:nowrap">
             {% if g.meta_id %}
-            <form method="POST" action="{{ url_for('gasto_desvinc_meta', gid=g.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('paginas.gasto_desvinc_meta', gid=g.id) }}" class="d-inline">
               <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Quitar vinculo con meta"
                 onclick="return confirm('¿Eliminar vinculacion con la meta?')">
                 <i class="bi bi-piggy-bank" style="font-size:.8rem"></i>
               </button>
             </form>
             {% endif %}
-            <a href="{{ url_for('gasto_editar', gid=g.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1">
+            <a href="{{ url_for('paginas.gasto_editar', gid=g.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1">
               <i class="bi bi-pencil"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger py-0 px-2 ms-1"
-              onclick="confirmarEliminar('{{ url_for('gasto_eliminar', gid=g.id) }}', 'Eliminar: {{ g.descripcion }}?')">
+              onclick="confirmarEliminar('{{ url_for('paginas.gasto_eliminar', gid=g.id) }}', 'Eliminar: {{ g.descripcion }}?')">
               <i class="bi bi-trash"></i>
             </button>
           </td>
@@ -145,7 +145,7 @@
             </span>
             {% endif %}
             {% if g.es_fijo %}<span class="badge-fijo" style="font-size:.7rem">Fijo</span>{% endif %}
-            {% if g.meta_id %}<span style="font-size:.7rem;background:#0d6efd22;color:#0d6efd;border:1px solid #0d6efd44;border-radius:4px;padding:.1rem .4rem"><i class="bi bi-piggy-bank"></i> Meta</span>{% endif %}
+            {% if g.meta_id %}<span style="font-size:.7rem;background:#FAEFD3;color:#B16B4F;border:1px solid #E8B86D44;border-radius:4px;padding:.1rem .4rem"><i class="bi bi-piggy-bank"></i> Meta</span>{% endif %}
           </div>
           <div class="mt-1" style="font-size:.75rem;color:#adb5bd">
             {% if g.unombre %}
@@ -158,21 +158,21 @@
           {% if g.notas %}<div style="font-size:.75rem;color:#adb5bd">{{ g.notas }}</div>{% endif %}
         </div>
         <div class="text-end flex-shrink-0">
-          <div class="fw-bold text-danger" style="font-size:1rem">{{ "%.2f"|format(g.importe) }} €</div>
+          <div class="fw-bold text-expense" style="font-size:1rem">{{ "%.2f"|format(g.importe) }} €</div>
           <div class="d-flex gap-1 mt-2 justify-content-end">
             {% if g.meta_id %}
-            <form method="POST" action="{{ url_for('gasto_desvinc_meta', gid=g.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('paginas.gasto_desvinc_meta', gid=g.id) }}" class="d-inline">
               <button type="submit" class="btn btn-sm btn-outline-secondary p-1" title="Quitar meta"
                 onclick="return confirm('¿Eliminar vinculacion?')" style="width:32px;height:32px">
                 <i class="bi bi-piggy-bank" style="font-size:.8rem"></i>
               </button>
             </form>
             {% endif %}
-            <a href="{{ url_for('gasto_editar', gid=g.id) }}" class="btn btn-sm btn-outline-secondary p-1" style="width:32px;height:32px">
+            <a href="{{ url_for('paginas.gasto_editar', gid=g.id) }}" class="btn btn-sm btn-outline-secondary p-1" style="width:32px;height:32px">
               <i class="bi bi-pencil" style="font-size:.85rem"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger p-1" style="width:32px;height:32px"
-              onclick="confirmarEliminar('{{ url_for('gasto_eliminar', gid=g.id) }}', '{{ g.descripcion }}')">
+              onclick="confirmarEliminar('{{ url_for('paginas.gasto_eliminar', gid=g.id) }}', '{{ g.descripcion }}')">
               <i class="bi bi-trash" style="font-size:.85rem"></i>
             </button>
           </div>
@@ -188,7 +188,8 @@
 </div>
 
 <!-- FAB nuevo gasto (solo movil) -->
-<a href="{{ url_for('gasto_nuevo') }}" class="fab d-md-none" aria-label="Nuevo gasto">
+<a href="{{ url_for('paginas.gasto_nuevo') }}" class="fab d-md-none" aria-label="Nuevo gasto">
   <i class="bi bi-plus-lg"></i>
 </a>
 {% endblock %}
+

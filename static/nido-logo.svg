@@ -1,0 +1,10 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-label="Nido">
+  <path d="M 30 130 Q 100 180 170 130 Q 160 160 100 175 Q 40 160 30 130 Z" fill="#5C8374"/>
+  <path d="M 25 125 Q 60 105 100 110 Q 140 105 175 125" fill="none" stroke="#3F5E54" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 35 115 Q 70 95 100 100" fill="none" stroke="#5C8374" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 100 100 Q 130 95 165 115" fill="none" stroke="#5C8374" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="100" cy="105" rx="18" ry="22" fill="#E8B86D"/>
+  <ellipse cx="95" cy="98" rx="5" ry="6" fill="#F5D9A8" opacity="0.7"/>
+  <path d="M 45 100 Q 55 85 65 95 Q 60 100 45 100 Z" fill="#5C8374"/>
+  <path d="M 155 100 Q 145 85 135 95 Q 140 100 155 100 Z" fill="#5C8374"/>
+</svg>

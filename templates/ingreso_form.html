@@ -3,7 +3,7 @@
 {% block page_title %}{% if ingreso %}Editar Ingreso{% else %}Nuevo Ingreso{% endif %}{% endblock %}
 
 {% block topbar_actions %}
-<a href="{{ url_for('ingresos') }}" class="btn btn-sm btn-outline-secondary">
+<a href="{{ url_for('paginas.ingresos') }}" class="btn btn-sm btn-outline-secondary">
   <i class="bi bi-arrow-left me-1"></i> Volver
 </a>
 {% endblock %}
@@ -59,13 +59,13 @@
           </div>
 
           <!-- Es nomina -->
-          <div class="mb-4 p-3 rounded" style="background:#d1fae5;border:1.5px solid #6ee7b7">
+          <div class="mb-4 p-3 rounded" style="background:var(--nido-salvia-bg);border:1.5px solid var(--nido-salvia-light)">
             <div class="form-check form-switch d-flex align-items-center gap-2">
               <input class="form-check-input" type="checkbox" id="es_nomina" name="es_nomina" role="switch"
                 style="width:2.5em;height:1.3em"
                 {% if ingreso and ingreso.es_nomina %}checked{% endif %}>
               <label class="form-check-label fw-600" for="es_nomina" style="font-size:.92rem">
-                <i class="bi bi-briefcase text-success me-1"></i> Ingreso de nomina mensual
+                <i class="bi bi-briefcase me-1" style="color:var(--nido-salvia-dark)"></i> Ingreso de nomina mensual
               </label>
             </div>
             <small class="text-muted d-block mt-1" style="font-size:.78rem;padding-left:3rem">
@@ -74,7 +74,7 @@
           </div>
 
           <div class="d-grid">
-            <button type="submit" class="btn btn-success" style="min-height:48px">
+            <button type="submit" class="btn btn-nido-income w-100" style="min-height:48px">
               <i class="bi bi-check-lg me-1"></i>
               {% if ingreso %}Guardar cambios{% else %}Registrar ingreso{% endif %}
             </button>

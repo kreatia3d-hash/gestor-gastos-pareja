@@ -19,6 +19,8 @@ except ImportError:
 
 auth_bp = Blueprint('auth', __name__)
 
+_PRO_EMAILS = frozenset({'kreatia3d@gmail.com'})
+
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
     raise RuntimeError('JWT_SECRET no configurado en variables de entorno. Añádelo en Railway antes de desplegar.')
@@ -152,6 +154,8 @@ def api_auth_google():
             'UPDATE firebase_users SET nombre=?, foto=? WHERE firebase_uid=?',
             (fb['nombre'], fb['foto'], fb['uid'])
         )
+        if fb['email'].lower() in _PRO_EMAILS:
+            conn.execute("UPDATE nidos SET plan='pro' WHERE id=?", (fuser['nido_id'],))
         conn.commit()
         nido = conn.execute('SELECT * FROM nidos WHERE id=?', (fuser['nido_id'],)).fetchone()
         miembros_cnt = conn.execute(
@@ -199,6 +203,8 @@ def api_auth_google():
             (fb['uid'], fb['email'], fb['nombre'], fb['foto'], usuario_id)
         )
         user_id = cur2.lastrowid
+        if fb['email'].lower() in _PRO_EMAILS:
+            conn.execute("UPDATE nidos SET plan='pro' WHERE id=1")
         conn.commit()
         conn.close()
         token = generate_jwt(user_id, 1, fb['uid'])
@@ -242,13 +248,77 @@ def api_nido_info():
            WHERE fu.nido_id=?''',
         (g.nido_id,)
     ).fetchall()
+    # Auto-upgrade a PRO si el usuario está en la lista privilegiada
+    fu_row = conn.execute('SELECT email FROM firebase_users WHERE id=?', (g.user_id,)).fetchone()
+    plan_actual = nido['plan'] if nido else 'free'
+    if fu_row and fu_row['email'].lower() in _PRO_EMAILS and plan_actual != 'pro':
+        conn.execute("UPDATE nidos SET plan='pro' WHERE id=?", (g.nido_id,))
+        conn.commit()
+        plan_actual = 'pro'
     conn.close()
     return jsonify({
         'id':       nido['id'] if nido else g.nido_id,
         'nombre':   nido['nombre'] if nido else 'Mi Nido',
-        'plan':     nido['plan'] if nido else 'free',
+        'plan':     plan_actual,
         'miembros': [dict(m) for m in miembros],
     })
+
+
+@auth_bp.route('/api/nido/pareja', methods=['DELETE'])
+@requiere_auth
+def api_nido_quitar_pareja():
+    """Elimina al otro miembro del nido. Sus datos históricos permanecen en el nido."""
+    conn = _get_db()
+    miembros = conn.execute(
+        'SELECT id, usuario_id, email FROM firebase_users WHERE nido_id=?', (g.nido_id,)
+    ).fetchall()
+    if len(miembros) < 2:
+        conn.close()
+        return jsonify({'error': 'No hay pareja que eliminar'}), 400
+    otro = next((m for m in miembros if m['id'] != g.user_id), None)
+    if not otro:
+        conn.close()
+        return jsonify({'error': 'No se encontró al otro miembro'}), 404
+    # Desvincular del nido (los datos históricos se quedan en el nido)
+    conn.execute('DELETE FROM firebase_users WHERE id=?', (otro['id'],))
+    # Invalidar invitaciones activas del nido
+    conn.execute("UPDATE invitaciones SET estado='expirada' WHERE nido_id=? AND estado='pendiente'",
+                 (g.nido_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+@auth_bp.route('/api/nido/pareja/datos', methods=['DELETE'])
+@requiere_auth
+def api_borrar_datos_pareja():
+    """Elimina todos los gastos e ingresos de un usuario concreto en este nido."""
+    usuario_id = request.args.get('usuario_id', type=int)
+    if not usuario_id:
+        return jsonify({'error': 'Falta usuario_id'}), 400
+    conn = _get_db()
+    # El usuario debe pertenecer (o haber pertenecido) al nido
+    en_nido = conn.execute(
+        'SELECT 1 FROM usuarios WHERE id=? AND nido_id=?', (usuario_id, g.nido_id)
+    ).fetchone()
+    if not en_nido:
+        conn.close()
+        return jsonify({'error': 'Usuario no pertenece a este nido'}), 403
+    n_g = conn.execute(
+        "SELECT COUNT(*) as c FROM gastos WHERE usuario_id=? AND nido_id=?",
+        (usuario_id, g.nido_id)
+    ).fetchone()['c']
+    n_i = conn.execute(
+        "SELECT COUNT(*) as c FROM ingresos WHERE usuario_id=? AND nido_id=?",
+        (usuario_id, g.nido_id)
+    ).fetchone()['c']
+    conn.execute("DELETE FROM gastos WHERE usuario_id=? AND nido_id=?",
+                 (usuario_id, g.nido_id))
+    conn.execute("DELETE FROM ingresos WHERE usuario_id=? AND nido_id=?",
+                 (usuario_id, g.nido_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'gastos_borrados': n_g, 'ingresos_borrados': n_i})
 
 
 @auth_bp.route('/api/nido/plan', methods=['POST'])
@@ -330,6 +400,8 @@ def api_nido_crear():
         (fb['uid'], fb['email'], fb['nombre'], fb['foto'], nido_id, usuario_id)
     )
     user_id = cur_fu.lastrowid
+    if fb['email'].lower() in _PRO_EMAILS:
+        conn.execute("UPDATE nidos SET plan='pro' WHERE id=?", (nido_id,))
     conn.commit()
     conn.close()
 
@@ -367,6 +439,66 @@ def api_nido_invitar():
 
     invite_url = f'https://{BASE_URL}/invite/{token}'
     return jsonify({'token': token, 'url': invite_url, 'expires_at': expires})
+
+
+# ── Fusión de nidos ───────────────────────────────────────────────────────────
+
+def _fusionar_nidos(conn, nido_origen: int, nido_destino: int) -> dict:
+    """Mueve todos los datos de nido_origen a nido_destino. Devuelve estadísticas."""
+    stats = {}
+
+    # Tablas con nido_id directo
+    for tabla in ('gastos', 'ingresos', 'metas_ahorro', 'presupuestos', 'notificaciones'):
+        try:
+            r = conn.execute(f"SELECT COUNT(*) as c FROM {tabla} WHERE nido_id=?",
+                             (nido_origen,)).fetchone()
+            n = r['c'] if r else 0
+            if n:
+                conn.execute(f"UPDATE {tabla} SET nido_id=? WHERE nido_id=?",
+                             (nido_destino, nido_origen))
+            stats[tabla] = n
+        except Exception:
+            stats[tabla] = 0
+
+    # Categorías: migrar con deduplicación por nombre
+    cats_orig = conn.execute(
+        "SELECT * FROM categorias_gasto WHERE nido_id=?", (nido_origen,)
+    ).fetchall()
+    cat_map = {}
+    for cat in cats_orig:
+        existing = conn.execute(
+            "SELECT id FROM categorias_gasto WHERE nido_id=? AND nombre=?",
+            (nido_destino, cat['nombre'])
+        ).fetchone()
+        if existing:
+            cat_map[cat['id']] = existing['id']
+        else:
+            cur = conn.execute(
+                "INSERT INTO categorias_gasto (nombre, color, icono, activa, es_ahorro, nido_id)"
+                " VALUES (?,?,?,?,?,?)",
+                (cat['nombre'], cat['color'], cat['icono'],
+                 cat['activa'], cat['es_ahorro'], nido_destino)
+            )
+            cat_map[cat['id']] = cur.lastrowid
+
+    # Reasignar categoria_id en gastos migrados
+    for old_id, new_id in cat_map.items():
+        if old_id != new_id:
+            conn.execute(
+                "UPDATE gastos SET categoria_id=? WHERE categoria_id=? AND nido_id=?",
+                (new_id, old_id, nido_destino)
+            )
+
+    # Mover usuarios del nido origen al destino
+    conn.execute("UPDATE usuarios SET nido_id=? WHERE nido_id=?",
+                 (nido_destino, nido_origen))
+
+    # Limpiar nido origen
+    conn.execute("DELETE FROM categorias_gasto WHERE nido_id=?", (nido_origen,))
+    conn.execute("UPDATE invitaciones SET estado='expirada' WHERE nido_id=?", (nido_origen,))
+    conn.execute("DELETE FROM nidos WHERE id=?", (nido_origen,))
+
+    return stats
 
 
 # ── /api/invitaciones/<token> ─────────────────────────────────────────────────
@@ -437,8 +569,26 @@ def api_invitacion_aceptar(token):
             conn.close()
             token_jwt = generate_jwt(fuser['id'], fuser['nido_id'], fb['uid'])
             return jsonify({'token': token_jwt, 'ok': True})
+        # Ya tiene otro nido → fusionarlo con el nido destino
+        if not nido_lleno:
+            stats = _fusionar_nidos(conn, fuser['nido_id'], inv['nido_id'])
+            # Actualizar firebase_user al nido destino
+            conn.execute('UPDATE firebase_users SET nido_id=? WHERE id=?',
+                         (inv['nido_id'], fuser['id']))
+            conn.execute("UPDATE invitaciones SET estado='aceptada' WHERE token=?", (token,))
+            conn.commit()
+            conn.close()
+            token_jwt = generate_jwt(fuser['id'], inv['nido_id'], fb['uid'])
+            return jsonify({
+                'token':          token_jwt,
+                'nido_id':        inv['nido_id'],
+                'usuario_id':     fuser['usuario_id'],
+                'ok':             True,
+                'merge_realizado': True,
+                'merge_stats':    stats,
+            })
         conn.close()
-        return jsonify({'error': 'Ya perteneces a otro nido'}), 409
+        return jsonify({'error': 'El nido de destino ya está completo'}), 400
 
     nido_id = inv['nido_id']
 
@@ -542,43 +692,51 @@ def web_invite_landing(token):
         if nido:           nido_nombre = nido['nombre']
         if primer_miembro: invitado_por = primer_miembro['nombre']
     conn.close()
-    download_url = os.environ.get('DOWNLOAD_APK_URL', '')
-    return _render_invite(valida, token, invitado_por, download_url)
+    download_url     = os.environ.get('DOWNLOAD_APK_URL', '')
+    play_store_url   = os.environ.get('PLAY_STORE_URL', '')
+    return _render_invite(valida, token, invitado_por, download_url, play_store_url)
 
 
-def _render_invite(valida, token, invitado_por, download_url):
-    dl_btn = f'''
-      <a href="{download_url}" class="btn btn-download">
-        <span>⬇</span> Descargar Nido (Android)
-      </a>''' if download_url else ''
+def _render_invite(valida, token, invitado_por, download_url='', play_store_url=''):
+    # Sección de descarga — siempre visible, con al menos un fallback
+    if play_store_url:
+        descarga_html = f'<a href="{play_store_url}" class="btn btn-download">⬇ Descargar en Google Play</a>'
+    elif download_url:
+        descarga_html = f'<a href="{download_url}" class="btn btn-download">⬇ Descargar Nido (Android)</a>'
+    else:
+        descarga_html = '<p class="hint-box">📱 Busca <strong>Nido by Kreatia</strong> en la Play Store para instalar la app.</p>'
 
     if valida:
         content = f'''
-      <span class="nido-icon">🪺</span>
-      <div class="invite-label">Invitación personal</div>
-      <h1>{invitado_por} te invita a su nido</h1>
-      <p class="desc">Gestiona el dinero en pareja de forma sencilla. Gastos, metas de ahorro y
-        balances — todo compartido.</p>
+      <div class="invite-label">🪺 Invitación personal</div>
+      <h1>{invitado_por} te invita<br>a su nido</h1>
+      <p class="desc">Gestiona el dinero en pareja: gastos, ingresos, metas de ahorro y análisis con IA.</p>
 
-      <div class="codigo-box">
+      <div class="codigo-box" onclick="copiarCodigo()" title="Pulsa para copiar">
         <div class="codigo-label">Tu código de invitación</div>
-        <div class="codigo-valor">{token}</div>
-        <div class="codigo-hint">Introdúcelo en la app al unirte</div>
+        <div class="codigo-valor" id="codigo-texto">{token}</div>
+        <div class="codigo-hint" id="copia-msg">📋 Pulsa para copiar</div>
       </div>
 
-      {dl_btn}
-      <a href="nido://invite/{token}" class="btn btn-primary" id="btn-abrir">
-        <span>🪺</span> Abrir en Nido
-      </a>
-      <p class="hint">Si tienes Nido instalado, pulsa el botón de arriba.<br>
-        Si no, descarga la app, entra con Google y usa el código <strong>{token}</strong>.</p>'''
+      <button class="btn btn-primary" id="btn-abrir" onclick="abrirApp()">
+        🪺 Ya tengo Nido — Unirme al nido
+      </button>
+      <div id="app-no-instalada" style="display:none">
+        <p class="hint-box">La app no se abrió automáticamente.<br>
+          Descárgala y usa el código <strong>{token}</strong> para unirte.</p>
+      </div>
+
+      <div class="o-sep">¿No tienes la app todavía?</div>
+      {descarga_html}
+
+      <p class="hint">Tras instalar Nido: inicia sesión con Google y podrás <strong>unirte a este nido</strong> con el código de arriba, o <strong>crear el tuyo propio</strong> con tu pareja.</p>'''
     else:
         content = f'''
-      <span class="nido-icon">⏳</span>
-      <h1>Esta invitación ya no está disponible</h1>
-      <p class="desc">El enlace ha expirado o ya fue utilizado.<br>
-        Pide a tu pareja que genere uno nuevo desde Nido.</p>
-      {dl_btn}'''
+      <div style="font-size:56px;text-align:center;margin-bottom:20px">⏳</div>
+      <h1>Invitación no disponible</h1>
+      <p class="desc">El enlace ha expirado o ya fue utilizado.<br>Pide a tu pareja que genere uno nuevo desde Nido.</p>
+      <div class="o-sep">¿Quieres probar Nido?</div>
+      {descarga_html}'''
 
     html = f'''<!DOCTYPE html>
 <html lang="es">
@@ -591,44 +749,54 @@ def _render_invite(valida, token, invitado_por, download_url):
     *,*::before,*::after{{margin:0;padding:0;box-sizing:border-box}}
     :root{{--bosque:#3F5E54;--salvia:#5C8374;--crema:#F5EDE0;--dorado:#E8B86D;--carbon:#2D2D2D}}
     body{{font-family:'Inter',sans-serif;background:var(--bosque);min-height:100vh;
-         display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;
-         position:relative;overflow-x:hidden}}
-    body::before{{content:'';position:fixed;top:-30%;right:-20%;width:600px;height:600px;
-                  background:radial-gradient(circle,rgba(92,131,116,.35) 0%,transparent 70%);pointer-events:none}}
-    .wrapper{{width:100%;max-width:440px;position:relative;z-index:1}}
-    .marca{{text-align:center;margin-bottom:28px}}
-    .marca-logo{{font-family:'Fraunces',serif;font-size:38px;font-weight:700;color:var(--crema)}}
-    .marca-sub{{font-size:12px;color:rgba(245,237,224,.5);letter-spacing:2px;text-transform:uppercase;margin-top:2px}}
-    .card{{background:var(--crema);border-radius:28px;padding:40px 32px 36px;box-shadow:0 32px 80px rgba(0,0,0,.35)}}
-    .nido-icon{{font-size:56px;text-align:center;margin-bottom:20px;display:block}}
-    .invite-label{{display:inline-block;background:rgba(92,131,116,.12);color:var(--salvia);
-                   font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
-                   padding:4px 12px;border-radius:20px;margin-bottom:12px}}
-    h1{{font-family:'Fraunces',serif;font-size:24px;font-weight:700;color:var(--carbon);
-        line-height:1.25;margin-bottom:12px}}
-    .desc{{color:#6B7B74;font-size:15px;line-height:1.65;margin-bottom:24px}}
-    .features{{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}}
-    .feature{{display:flex;align-items:center;gap:12px;background:rgba(63,94,84,.06);
-              border-radius:12px;padding:12px 16px}}
-    .feature-icon{{font-size:20px;flex-shrink:0}}
-    .feature-text{{font-size:13px;color:#4A5A54;font-weight:500}}
-    .btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
-          padding:17px 24px;border-radius:16px;font-family:'Inter',sans-serif;font-size:16px;
-          font-weight:600;text-decoration:none;margin-bottom:12px;border:none;cursor:pointer;
-          transition:transform .15s,box-shadow .15s}}
-    .btn:active{{transform:scale(.98)}}
-    .btn-primary{{background:var(--bosque);color:var(--crema);box-shadow:0 8px 24px rgba(63,94,84,.35)}}
-    .btn-primary:hover{{background:#344f46;transform:translateY(-1px)}}
+         display:flex;flex-direction:column;align-items:center;justify-content:center;
+         padding:20px 16px;position:relative;overflow-x:hidden}}
+    body::before{{content:'';position:fixed;top:-30%;right:-20%;width:500px;height:500px;
+                  background:radial-gradient(circle,rgba(92,131,116,.3) 0%,transparent 70%);pointer-events:none}}
+    .wrapper{{width:100%;max-width:420px;position:relative;z-index:1}}
+    .marca{{text-align:center;margin-bottom:20px}}
+    .marca-logo{{font-family:'Fraunces',serif;font-size:34px;font-weight:700;color:var(--crema)}}
+    .marca-sub{{font-size:11px;color:rgba(245,237,224,.45);letter-spacing:2px;text-transform:uppercase;margin-top:2px}}
+    .card{{background:var(--crema);border-radius:24px;padding:32px 28px 28px;box-shadow:0 24px 64px rgba(0,0,0,.35)}}
+    .invite-label{{display:inline-flex;align-items:center;gap:6px;background:rgba(92,131,116,.12);
+                   color:var(--salvia);font-size:12px;font-weight:600;letter-spacing:.5px;
+                   padding:5px 12px;border-radius:20px;margin-bottom:14px}}
+    h1{{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--carbon);
+        line-height:1.25;margin-bottom:10px}}
+    .desc{{color:#6B7B74;font-size:14px;line-height:1.6;margin-bottom:22px}}
+    .codigo-box{{background:var(--bosque);border-radius:14px;padding:18px 16px;margin-bottom:18px;
+                 text-align:center;cursor:pointer;transition:opacity .15s;user-select:none;
+                 -webkit-tap-highlight-color:transparent}}
+    .codigo-box:active{{opacity:.85}}
+    .codigo-label{{color:rgba(245,237,224,.55);font-size:10px;letter-spacing:2px;
+                   text-transform:uppercase;margin-bottom:10px}}
+    .codigo-valor{{font-family:'Fraunces',serif;font-size:38px;font-weight:700;
+                   color:var(--dorado);letter-spacing:5px;word-break:break-all}}
+    .codigo-hint{{color:rgba(245,237,224,.5);font-size:11px;margin-top:8px;display:flex;
+                  align-items:center;justify-content:center;gap:5px}}
+    .btn{{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+          padding:16px 20px;border-radius:14px;font-family:'Inter',sans-serif;font-size:15px;
+          font-weight:600;text-decoration:none;margin-bottom:10px;border:none;cursor:pointer;
+          transition:transform .15s,box-shadow .15s;-webkit-tap-highlight-color:transparent}}
+    .btn:active{{transform:scale(.97)}}
+    .btn-primary{{background:var(--bosque);color:var(--crema);box-shadow:0 6px 20px rgba(63,94,84,.3)}}
     .btn-download{{background:linear-gradient(135deg,var(--dorado),#d4a55a);color:var(--carbon);
-                   box-shadow:0 8px 24px rgba(232,184,109,.4)}}
-    .btn-download:hover{{transform:translateY(-1px)}}
-    .hint{{text-align:center;color:#9BA8A3;font-size:12px;line-height:1.6;margin-top:4px}}
-    .footer{{text-align:center;margin-top:20px;color:rgba(245,237,224,.35);font-size:12px}}
-    .codigo-box{{background:var(--bosque);border-radius:16px;padding:20px;margin-bottom:20px;text-align:center}}
-    .codigo-label{{color:rgba(245,237,224,.6);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}}
-    .codigo-valor{{font-family:'Fraunces',serif;font-size:42px;font-weight:700;color:var(--dorado);letter-spacing:6px}}
-    .codigo-hint{{color:rgba(245,237,224,.5);font-size:11px;margin-top:6px}}
-    @media(max-width:480px){{.card{{padding:32px 24px 28px}}h1{{font-size:20px}}.codigo-valor{{font-size:36px}}}}
+                   box-shadow:0 6px 20px rgba(232,184,109,.35)}}
+    .hint{{text-align:center;color:#9BA8A3;font-size:12px;line-height:1.6;margin-top:6px}}
+    .hint strong{{color:#6B7B74}}
+    .hint-box{{background:rgba(92,131,116,.1);border-radius:10px;padding:12px 14px;
+               text-align:center;color:#5C8374;font-size:13px;line-height:1.5;margin-bottom:12px}}
+    .hint-box strong{{color:var(--bosque)}}
+    .steps{{margin-bottom:20px}}
+    .step{{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}}
+    .step-num{{background:var(--bosque);color:var(--crema);border-radius:50%;width:22px;height:22px;
+               display:flex;align-items:center;justify-content:center;font-size:11px;
+               font-weight:700;flex-shrink:0;margin-top:1px}}
+    .step-text{{font-size:13px;color:#4A5A54;line-height:1.45}}
+    .o-sep{{display:flex;align-items:center;gap:8px;margin:14px 0 10px;color:#9BA8A3;font-size:12px}}
+    .o-sep::before,.o-sep::after{{content:'';flex:1;height:1px;background:rgba(155,168,163,.25)}}
+    .footer{{text-align:center;margin-top:16px;color:rgba(245,237,224,.3);font-size:11px}}
+    @media(max-width:400px){{.card{{padding:24px 20px 22px}}.codigo-valor{{font-size:32px}}h1{{font-size:20px}}}}
   </style>
 </head>
 <body>
@@ -638,8 +806,42 @@ def _render_invite(valida, token, invitado_por, download_url):
       <div class="marca-sub">by Kreatia</div>
     </div>
     <div class="card">{content}</div>
-    <div class="footer">Nido by Kreatia · Solo para parejas</div>
+    <div class="footer">Nido by Kreatia &middot; Solo para parejas</div>
   </div>
+  <script>
+    function copiarCodigo() {{
+      var codigo = '{token}';
+      if (navigator.clipboard && navigator.clipboard.writeText) {{
+        navigator.clipboard.writeText(codigo).then(function() {{
+          document.getElementById('copia-msg').textContent = '✓ ¡Copiado!';
+          setTimeout(function() {{ document.getElementById('copia-msg').textContent = '📋 Pulsa para copiar'; }}, 2200);
+        }});
+      }} else {{
+        var ta = document.createElement('textarea');
+        ta.value = codigo; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        document.getElementById('copia-msg').textContent = '✓ ¡Copiado!';
+        setTimeout(function() {{ document.getElementById('copia-msg').textContent = '📋 Pulsa para copiar'; }}, 2200);
+      }}
+    }}
+    function abrirApp() {{
+      var inicio = Date.now();
+      var iframe = document.createElement('iframe');
+      iframe.style.display='none';
+      iframe.src = 'nido://invite/{token}';
+      document.body.appendChild(iframe);
+      setTimeout(function() {{
+        document.body.removeChild(iframe);
+        if (Date.now() - inicio < 3000) {{
+          var d = document.getElementById('app-no-instalada');
+          if (d) d.style.display='block';
+          var b = document.getElementById('btn-abrir');
+          if (b) b.style.display='none';
+        }}
+      }}, 2500);
+    }}
+  </script>
 </body>
 </html>'''
     from flask import make_response

@@ -1,20 +1,70 @@
-/* ── VARIABLES ──────────────────────────────────────────── */
+/* ── VARIABLES NIDO ─────────────────────────────────────── */
 :root {
-  --sidebar-bg: #1a1f2e;
+  /* Paleta */
+  --nido-salvia: #5C8374;
+  --nido-salvia-dark: #3F5E54;
+  --nido-salvia-light: #93B5A8;
+  --nido-salvia-bg: #E5EDE9;
+  --nido-terracota: #D4886A;
+  --nido-terracota-dark: #B16B4F;
+  --nido-terracota-bg: #F8E5DC;
+  --nido-dorado: #E8B86D;
+  --nido-dorado-bg: #FAEFD3;
+  --nido-crema: #F5EDE0;
+  --nido-crema-soft: #FAF6EE;
+  --nido-carbon: #2D2D2D;
+  --nido-gris: #6B6B6B;
+  --nido-gris-soft: #A8A8A8;
+
+  /* Roles funcionales */
+  --primary: var(--nido-salvia);
+  --primary-dark: var(--nido-salvia-dark);
+  --accent: var(--nido-dorado);
+  --bg-app: var(--nido-crema-soft);
+  --bg-card: #FFFFFF;
+  --text-main: var(--nido-carbon);
+  --text-muted: var(--nido-gris);
+  --color-income: var(--nido-salvia-dark);
+  --color-expense: var(--nido-terracota-dark);
+  --color-saving: var(--nido-dorado);
+
+  /* Layout (mantener) */
+  --sidebar-bg: var(--nido-salvia-dark);
   --sidebar-w: 240px;
-  --primary: #4f8ef7;
   --topbar-h: 56px;
   --bottom-nav-h: 72px;
+}
+
+/* Sobreescribir variables Bootstrap */
+:root {
+  --bs-primary: var(--nido-salvia);
+  --bs-primary-rgb: 92, 131, 116;
+  --bs-success: var(--nido-salvia-dark);
+  --bs-success-rgb: 63, 94, 84;
+  --bs-danger: var(--nido-terracota-dark);
+  --bs-danger-rgb: 177, 107, 79;
+  --bs-warning: var(--nido-dorado);
+  --bs-warning-rgb: 232, 184, 109;
+  --bs-body-bg: var(--nido-crema-soft);
+  --bs-body-color: var(--nido-carbon);
 }
 
 /* ── RESET / BASE ───────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 body {
-  background: #f0f2f7;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg-app);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Fraunces SOLO para títulos y cifras grandes */
+h1, h2, h3, h4, .topbar-title, .stat-value,
+.fraunces, .display-fraunces {
+  font-family: 'Fraunces', Georgia, serif;
+  letter-spacing: -0.01em;
 }
 
 /* ── SIDEBAR ────────────────────────────────────────────── */
@@ -72,7 +122,11 @@ body {
 }
 
 .sidebar-nav-link:hover { background: rgba(255,255,255,.08); color: #fff; }
-.sidebar-nav-link.active { background: var(--primary); color: #fff; font-weight: 600; }
+.sidebar-nav-link.active {
+  background: var(--nido-dorado);
+  color: var(--nido-carbon);
+  font-weight: 600;
+}
 .sidebar-nav-link i { font-size: 1rem; width: 18px; text-align: center; }
 
 .sidebar-divider {
@@ -436,7 +490,7 @@ body {
   color: #374151;
   padding: 0;
 }
-.icon-option:hover { border-color: var(--primary); background: #f0f4ff; }
+.icon-option:hover { border-color: var(--primary); background: var(--nido-salvia-bg); }
 .icon-option.selected { border-color: var(--primary); background: var(--primary); color: #fff; }
 
 /* ── MOBILE ─────────────────────────────────────────────── */
@@ -481,3 +535,337 @@ body {
 
 /* Botón hamburguesa nunca visible: en móvil hay bottom-nav, en escritorio la sidebar es fija */
 .sidebar-toggle { display: none !important; }
+
+/* ── LOGO NIDO ──────────────────────────────────────────── */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+}
+.sidebar-logo-img {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: var(--nido-crema);
+  border-radius: 8px;
+  padding: 3px;
+}
+.sidebar-logo .fraunces {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  color: var(--nido-crema);
+  letter-spacing: -0.02em;
+}
+
+/* Logo mini para PIN y otras pantallas */
+.nido-logo-mini {
+  width: 56px;
+  height: 56px;
+  display: block;
+  margin: 0 auto;
+}
+
+/* ── BOTTOM NAV NIDO ────────────────────────────────────── */
+.bottom-nav {
+  background: var(--bg-card);
+  border-top: 1px solid rgba(45,45,45,0.06);
+  box-shadow: 0 -2px 12px rgba(45,45,45,0.04);
+}
+.bottom-nav-item {
+  color: var(--nido-gris-soft);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.65rem;
+}
+.bottom-nav-item.active {
+  color: var(--nido-salvia);
+}
+.bottom-nav-item.active i {
+  transform: scale(1.1);
+}
+
+/* ── COLORES SEMÁNTICOS ─────────────────────────────────── */
+.text-income { color: var(--color-income) !important; }
+.text-expense { color: var(--color-expense) !important; }
+.text-saving { color: var(--color-saving) !important; }
+
+/* ── STAT CARDS (KPIs) ──────────────────────────────────── */
+.stat-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 1rem;
+  border: 1px solid rgba(45,45,45,0.05);
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(45,45,45,0.06);
+}
+.stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.stat-value {
+  font-family: 'Fraunces', serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.stat-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+
+/* Cards generales */
+.card {
+  background: var(--bg-card);
+  border: 1px solid rgba(45,45,45,0.05) !important;
+  border-radius: 16px !important;
+}
+.card-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(45,45,45,0.04) !important;
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+}
+
+/* ── FILTER CHIPS ───────────────────────────────────────── */
+.filter-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.filter-chip {
+  background: var(--bg-card);
+  border: 1px solid rgba(45,45,45,0.08);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  color: var(--text-main);
+  text-decoration: none;
+  transition: all .15s;
+}
+.filter-chip:hover { background: var(--nido-crema); }
+.filter-chip.active {
+  background: var(--nido-salvia);
+  color: #fff;
+  border-color: var(--nido-salvia);
+}
+
+/* ── MOVEMENT LIST ──────────────────────────────────────── */
+.movement-list { display: flex; flex-direction: column; gap: 6px; }
+.movement-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid rgba(45,45,45,0.04);
+}
+.movement-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.movement-icon.cat-casa { background: var(--nido-salvia-bg); color: var(--nido-salvia-dark); }
+.movement-icon.cat-comida { background: var(--nido-terracota-bg); color: var(--nido-terracota-dark); }
+.movement-icon.cat-ocio { background: var(--nido-dorado-bg); color: var(--nido-dorado); }
+.movement-icon.cat-otros { background: #EFEAE0; color: var(--nido-gris); }
+.movement-text { flex: 1; min-width: 0; }
+.movement-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.movement-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+.badge-mini {
+  background: #EFEAE0;
+  color: var(--text-main);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.movement-amount {
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.movement-amount.expense { color: var(--color-expense); }
+.movement-amount.income { color: var(--color-income); }
+
+/* ── AMOUNT INPUT ───────────────────────────────────────── */
+.amount-input-wrap {
+  background: var(--bg-card);
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid rgba(45,45,45,0.05);
+}
+.form-label-small {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.amount-input {
+  border: none;
+  background: transparent;
+  font-family: 'Fraunces', serif;
+  font-size: 2.2rem;
+  font-weight: 600;
+  text-align: right;
+  width: 100%;
+  padding: 0;
+  letter-spacing: -0.02em;
+  outline: none;
+}
+.amount-input.amount-expense { color: var(--color-expense); }
+.amount-input.amount-income { color: var(--color-income); }
+.amount-input.amount-saving { color: var(--color-saving); }
+.amount-input::placeholder { color: rgba(45,45,45,0.2); }
+
+/* ── BOTONES NIDO ───────────────────────────────────────── */
+.btn-nido-expense, .btn-nido-income, .btn-nido-saving {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  color: #fff;
+  font-size: 1rem;
+}
+.btn-nido-expense { background: var(--nido-terracota); }
+.btn-nido-expense:hover { background: var(--nido-terracota-dark); color: #fff; }
+.btn-nido-income { background: var(--nido-salvia); }
+.btn-nido-income:hover { background: var(--nido-salvia-dark); color: #fff; }
+.btn-nido-saving { background: var(--nido-dorado); color: var(--nido-carbon); }
+.btn-nido-saving:hover { background: #d4a55b; color: var(--nido-carbon); }
+
+/* ── META CARDS ─────────────────────────────────────────── */
+.meta-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 1px solid rgba(45,45,45,0.05);
+  border-left: 4px solid var(--nido-salvia);
+  padding: 1rem 1.25rem;
+  margin-bottom: 12px;
+}
+.meta-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.meta-amount {
+  font-family: 'Fraunces', serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--nido-salvia-dark);
+}
+.progress {
+  height: 8px !important;
+  background: #EFEAE0 !important;
+  border-radius: 4px !important;
+  overflow: hidden;
+}
+.progress-bar {
+  background: var(--nido-salvia) !important;
+  border-radius: 4px !important;
+  transition: width .6s ease;
+}
+
+/* ── META HERO ──────────────────────────────────────────── */
+.meta-hero {
+  background: linear-gradient(135deg, var(--nido-salvia) 0%, var(--nido-salvia-dark) 100%);
+  color: #fff;
+  padding: 1.5rem;
+  border-radius: 16px;
+  text-align: center;
+}
+.meta-hero-icon {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--nido-dorado);
+  color: var(--nido-carbon);
+  margin: 0 auto 0.75rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem;
+  box-shadow: 0 4px 16px rgba(232,184,109,0.4);
+}
+.meta-hero-name {
+  font-family: 'Fraunces', serif;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.meta-hero-progress {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-bottom: 1rem;
+}
+.meta-hero-bar {
+  height: 8px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.meta-hero-bar-fill {
+  height: 100%;
+  background: var(--nido-dorado);
+  transition: width .6s ease;
+}
+
+/* ── SETTINGS ───────────────────────────────────────────── */
+.settings-section {
+  background: var(--bg-card);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(45,45,45,0.05);
+}
+.settings-section-title {
+  padding: 0.6rem 1rem;
+  background: var(--nido-crema);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-main);
+  font-weight: 700;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(45,45,45,0.04);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--nido-salvia-bg);
+  color: var(--nido-salvia-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+}

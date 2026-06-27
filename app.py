@@ -261,6 +261,14 @@ def _init_db_pg():
             nido_id INTEGER DEFAULT 1 REFERENCES nidos(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''',
+        '''CREATE TABLE IF NOT EXISTS fcm_tokens (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            token TEXT NOT NULL,
+            nido_id INTEGER NOT NULL DEFAULT 1 REFERENCES nidos(id),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(usuario_id, token)
+        )''',
         '''CREATE TABLE IF NOT EXISTS config (
             key TEXT PRIMARY KEY,
             value TEXT
@@ -358,6 +366,14 @@ def _init_db_sqlite():
         leida INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS fcm_tokens (
+        id INTEGER PRIMARY KEY,
+        usuario_id INTEGER NOT NULL,
+        token TEXT NOT NULL,
+        nido_id INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(usuario_id, token)
+    )''')
     c.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
         id INTEGER PRIMARY KEY,
         categoria_id INTEGER NOT NULL UNIQUE,
@@ -419,7 +435,8 @@ def _init_db_sqlite():
     conn.commit()
     conn.close()
 
-    restaurar_desde_backup()
+    if not IS_CLOUD:
+        restaurar_desde_backup()
     _seed_default_data()
 
 
@@ -464,11 +481,11 @@ def _seed_default_data():
 # ── Registrar blueprints ──────────────────────────────────────────────────────
 from blueprints import (
     gastos_bp, ingresos_bp, metas_bp, presupuestos_bp,
-    dashboard_bp, ia_bp, usuarios_bp, datos_bp, paginas_bp,
+    dashboard_bp, ia_bp, usuarios_bp, datos_bp, paginas_bp, push_bp,
 )
 
 for bp in (gastos_bp, ingresos_bp, metas_bp, presupuestos_bp,
-           dashboard_bp, ia_bp, usuarios_bp, datos_bp, paginas_bp):
+           dashboard_bp, ia_bp, usuarios_bp, datos_bp, paginas_bp, push_bp):
     app.register_blueprint(bp)
 
 # ── Exponer guardar_backup y rutas al config de la app (para blueprints) ─────

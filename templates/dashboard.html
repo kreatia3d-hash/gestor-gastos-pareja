@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Dashboard — Gastos en Pareja{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Dashboard â€” Nido{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
 {% block topbar_actions %}
@@ -8,9 +8,9 @@
   {% set anio_prev = anio if mes > 1 else anio - 1 %}
   {% set mes_next = mes + 1 if mes < 12 else 1 %}
   {% set anio_next = anio if mes < 12 else anio + 1 %}
-  <a href="{{ url_for('dashboard', mes=mes_prev, anio=anio_prev) }}"><i class="bi bi-chevron-left"></i></a>
+  <a href="{{ url_for('paginas.dashboard', mes=mes_prev, anio=anio_prev) }}"><i class="bi bi-chevron-left"></i></a>
   <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
-  <a href="{{ url_for('dashboard', mes=mes_next, anio=anio_next) }}"><i class="bi bi-chevron-right"></i></a>
+  <a href="{{ url_for('paginas.dashboard', mes=mes_next, anio=anio_next) }}"><i class="bi bi-chevron-right"></i></a>
 </div>
 {% endblock %}
 
@@ -22,9 +22,9 @@
       <div class="d-flex justify-content-between align-items-start">
         <div>
           <div class="stat-label">Ingresos</div>
-          <div class="stat-value text-success">{{ "%.2f"|format(total_ingresos) }} €</div>
+          <div class="stat-value text-income">{{ "%.2f"|format(total_ingresos) }} €</div>
         </div>
-        <div class="stat-icon" style="background:#d1fae5;color:#065f46"><i class="bi bi-arrow-up-circle"></i></div>
+        <div class="stat-icon" style="background:#E5EDE9;color:#3F5E54"><i class="bi bi-arrow-up-circle"></i></div>
       </div>
     </div>
   </div>
@@ -33,9 +33,9 @@
       <div class="d-flex justify-content-between align-items-start">
         <div>
           <div class="stat-label">Gastos</div>
-          <div class="stat-value text-danger">{{ "%.2f"|format(total_gastos) }} €</div>
+          <div class="stat-value text-expense">{{ "%.2f"|format(total_gastos) }} €</div>
         </div>
-        <div class="stat-icon" style="background:#fee2e2;color:#991b1b"><i class="bi bi-arrow-down-circle"></i></div>
+        <div class="stat-icon" style="background:#F8E5DC;color:#B16B4F"><i class="bi bi-arrow-down-circle"></i></div>
       </div>
     </div>
   </div>
@@ -44,11 +44,11 @@
       <div class="d-flex justify-content-between align-items-start">
         <div>
           <div class="stat-label">Balance</div>
-          <div class="stat-value {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+          <div class="stat-value {% if balance >= 0 %}text-income{% else %}text-expense{% endif %}">
             {{ "%.2f"|format(balance) }} €
           </div>
         </div>
-        <div class="stat-icon" style="background:{% if balance>=0 %}#d1fae5;color:#065f46{% else %}#fee2e2;color:#991b1b{% endif %}">
+        <div class="stat-icon" style="background:{% if balance>=0 %}#E5EDE9;color:#3F5E54{% else %}#F8E5DC;color:#B16B4F{% endif %}">
           <i class="bi bi-{% if balance >= 0 %}trending-up{% else %}trending-down{% endif %}"></i>
         </div>
       </div>
@@ -59,9 +59,9 @@
       <div class="d-flex justify-content-between align-items-start">
         <div>
           <div class="stat-label">Gastos Fijos</div>
-          <div class="stat-value" style="color:#856404">{{ "%.2f"|format(gastos_fijos_total) }} €</div>
+          <div class="stat-value text-saving">{{ "%.2f"|format(gastos_fijos_total) }} €</div>
         </div>
-        <div class="stat-icon" style="background:#fff3cd;color:#856404"><i class="bi bi-repeat"></i></div>
+        <div class="stat-icon" style="background:#FAEFD3;color:#E8B86D"><i class="bi bi-repeat"></i></div>
       </div>
       {% if total_gastos > 0 %}
       <div class="progress mt-2" style="height:4px">
@@ -97,7 +97,7 @@
         {% if gastos_categoria %}
         <canvas id="chartCats" height="180"></canvas>
         {% else %}
-        <div class="text-center text-muted py-4"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Sin gastos este mes</div>
+        <div class="text-center text-muted py-4"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Mes tranquilo. Aún no hay gastos 🌿</div>
         {% endif %}
       </div>
     </div>
@@ -111,7 +111,7 @@
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-clock-history text-primary me-1"></i> Ultimos gastos</span>
-        <a href="{{ url_for('gastos', mes=mes, anio=anio) }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+        <a href="{{ url_for('paginas.gastos', mes=mes, anio=anio) }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
       </div>
       <div class="card-body p-0">
         {% if ultimos_gastos %}
@@ -128,7 +128,7 @@
                 </div>
               </div>
             </div>
-            <span class="fw-bold text-danger">-{{ "%.2f"|format(g.importe) }} €</span>
+            <span class="fw-bold text-expense">-{{ "%.2f"|format(g.importe) }} €</span>
           </li>
           {% endfor %}
         </ul>
@@ -194,7 +194,7 @@
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-bullseye text-primary me-1"></i> Metas activas</span>
-            <a href="{{ url_for('metas') }}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+            <a href="{{ url_for('paginas.metas') }}" class="btn btn-sm btn-outline-primary">Ver todas</a>
           </div>
           <div class="card-body">
             {% for m in metas %}
@@ -230,8 +230,8 @@ new Chart(document.getElementById('chartEvolucion'), {
   data: {
     labels,
     datasets: [
-      { label: 'Ingresos', data: dataIngresos, backgroundColor: 'rgba(40,167,69,.7)', borderRadius: 6 },
-      { label: 'Gastos', data: dataGastos, backgroundColor: 'rgba(220,53,69,.7)', borderRadius: 6 }
+      { label: 'Ingresos', data: dataIngresos, backgroundColor: 'rgba(63,94,84,0.8)', borderRadius: 6 },
+      { label: 'Gastos', data: dataGastos, backgroundColor: 'rgba(177,107,79,0.8)', borderRadius: 6 }
     ]
   },
   options: {
@@ -261,3 +261,4 @@ new Chart(document.getElementById('chartCats'), {
 {% endif %}
 </script>
 {% endblock %}
+

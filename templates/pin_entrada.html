@@ -1,43 +1,89 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PIN — Gastos en Pareja</title>
+  <title>Nido · Acceso</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    body { background: linear-gradient(135deg, #1a1f2e 0%, #2d3555 100%); min-height: 100vh; display:flex; align-items:center; justify-content:center; }
+    body {
+      background: linear-gradient(135deg, #3F5E54 0%, #2D2D2D 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
     .pin-wrap { max-width: 360px; width: 100%; padding: 1rem; }
-    .pin-title { color:#fff; font-size:1.4rem; font-weight:800; text-align:center; margin-bottom:.25rem; }
-    .pin-sub { color:rgba(255,255,255,.55); text-align:center; font-size:.9rem; margin-bottom:2rem; }
-    .pin-avatar { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 1rem; }
-    .pin-inputs { display:flex; gap:12px; justify-content:center; margin-bottom:1.5rem; }
-    .pin-digit {
-      width: 56px; height: 64px;
-      text-align: center; font-size: 1.6rem; font-weight: 700;
-      border: 2px solid rgba(255,255,255,.2); border-radius: 12px;
-      background: rgba(255,255,255,.08); color: #fff;
-      outline: none; transition: border-color .2s;
-      -webkit-text-security: disc;
+    .pin-title {
+      color: #fff;
+      font-family: 'Fraunces', serif;
+      font-size: 1.6rem;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 0.25rem;
     }
-    .pin-digit:focus { border-color: #4f8ef7; background: rgba(79,142,247,.15); }
-    .pin-numpad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:240px; margin:0 auto 1.5rem; }
-    .pin-key {
-      height: 58px; border-radius: 12px;
-      background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.15);
-      color: #fff; font-size: 1.3rem; font-weight: 600; cursor: pointer;
+    .pin-sub {
+      color: rgba(255,255,255,.6);
+      text-align: center;
+      font-size: .9rem;
+      margin-bottom: 2rem;
+    }
+    .pin-avatar {
+      width: 72px; height: 72px;
+      border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s, transform .1s; user-select: none;
+      font-size: 2rem;
+      margin: 0 auto 1rem;
+      background: #D4886A;
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(212,136,106,0.4);
     }
-    .pin-key:active { background: rgba(79,142,247,.4); transform: scale(.95); }
-    .pin-key.pin-del { font-size: 1rem; }
-    .pin-key.pin-ok { background: #4f8ef7; border-color: #4f8ef7; font-size:.95rem; }
-    .pin-key.pin-ok:active { background: #3a75e0; }
-    .pin-dots { display:flex; gap:12px; justify-content:center; margin-bottom:1.5rem; }
-    .pin-dot { width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.4); background:transparent; transition:background .15s; }
-    .pin-dot.filled { background:#4f8ef7; border-color:#4f8ef7; }
+    .pin-dots { display: flex; gap: 12px; justify-content: center; margin-bottom: 1.5rem; }
+    .pin-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.4);
+      background: transparent;
+      transition: background .15s;
+    }
+    .pin-dot.filled {
+      background: #E8B86D;
+      border-color: #E8B86D;
+    }
+    .pin-numpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      max-width: 240px;
+      margin: 0 auto 1.5rem;
+    }
+    .pin-key {
+      height: 58px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.1);
+      color: #fff;
+      font-family: 'Fraunces', serif;
+      font-size: 1.4rem;
+      font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background .15s, transform .1s;
+      user-select: none;
+      border: none;
+    }
+    .pin-key:active { background: rgba(232,184,109,.4); transform: scale(.95); }
+    .pin-key.pin-del { font-size: 1rem; font-family: 'Inter', sans-serif; }
+    .pin-key.pin-ok {
+      background: #E8B86D;
+      color: #2D2D2D;
+    }
+    .pin-key.pin-ok:active { background: #d4a55b; }
   </style>
 </head>
 <body>
@@ -63,7 +109,7 @@
   </div>
 
   <!-- Formulario oculto -->
-  <form id="pinForm" method="POST" action="{{ url_for('pin_usuario', uid=usuario.id) }}">
+  <form id="pinForm" method="POST" action="{{ url_for('paginas.pin_usuario', uid=usuario.id) }}">
     <input type="hidden" name="pin" id="pinHidden">
   </form>
 
@@ -78,7 +124,7 @@
   </div>
 
   <div class="text-center">
-    <a href="{{ url_for('seleccionar_usuario') }}" style="color:rgba(255,255,255,.45); font-size:.82rem; text-decoration:none;">
+    <a href="{{ url_for('paginas.seleccionar_usuario') }}" style="color:rgba(255,255,255,.45); font-size:.82rem; text-decoration:none;">
       <i class="bi bi-arrow-left me-1"></i>Volver
     </a>
   </div>
@@ -114,3 +160,4 @@ document.addEventListener('keydown', e => {
 </script>
 </body>
 </html>
+

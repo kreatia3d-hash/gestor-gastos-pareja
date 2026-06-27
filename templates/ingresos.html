@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Ingresos — Gastos en Pareja{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Ingresos â€” Nido{% endblock %}
 {% block page_title %}Ingresos · {{ nombre_mes }} {{ anio }}{% endblock %}
 
 {% block topbar_actions %}
@@ -8,11 +8,11 @@
   {% set ap = anio if mes > 1 else anio - 1 %}
   {% set mn = mes + 1 if mes < 12 else 1 %}
   {% set an = anio if mes < 12 else anio + 1 %}
-  <a href="{{ url_for('ingresos', mes=mp, anio=ap) }}"><i class="bi bi-chevron-left"></i></a>
+  <a href="{{ url_for('paginas.ingresos', mes=mp, anio=ap) }}"><i class="bi bi-chevron-left"></i></a>
   <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
-  <a href="{{ url_for('ingresos', mes=mn, anio=an) }}"><i class="bi bi-chevron-right"></i></a>
+  <a href="{{ url_for('paginas.ingresos', mes=mn, anio=an) }}"><i class="bi bi-chevron-right"></i></a>
 </div>
-<a href="{{ url_for('ingreso_nuevo') }}" class="btn btn-success btn-sm d-none d-md-inline-flex align-items-center gap-1">
+<a href="{{ url_for('paginas.ingreso_nuevo') }}" class="btn btn-success btn-sm d-none d-md-inline-flex align-items-center gap-1">
   <i class="bi bi-plus-lg"></i> Nuevo ingreso
 </a>
 {% endblock %}
@@ -23,13 +23,13 @@
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-label">Total ingresos</div>
-      <div class="stat-value text-success">{{ "%.2f"|format(total) }} €</div>
+      <div class="stat-value text-income">{{ "%.2f"|format(total) }} €</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="stat-card">
       <div class="stat-label">Nominas</div>
-      <div class="stat-value" style="color:#065f46">{{ "%.2f"|format(total_nomina) }} €</div>
+      <div class="stat-value text-income">{{ "%.2f"|format(total_nomina) }} €</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
@@ -61,7 +61,7 @@
         </select>
       </div>
       <div class="col-5 col-md-3">
-        <a href="{{ url_for('ingresos', mes=mes, anio=anio) }}" class="btn btn-outline-secondary btn-sm w-100">Limpiar</a>
+        <a href="{{ url_for('paginas.ingresos', mes=mes, anio=anio) }}" class="btn btn-outline-secondary btn-sm w-100">Limpiar</a>
       </div>
     </form>
   </div>
@@ -70,8 +70,8 @@
 <!-- Listado -->
 <div class="card">
   <div class="card-header d-flex justify-content-between">
-    <span><i class="bi bi-list-ul me-1 text-success"></i> {{ ingresos|length }} ingreso(s)</span>
-    <span class="fw-bold text-success">Total: {{ "%.2f"|format(total) }} €</span>
+    <span><i class="bi bi-list-ul me-1 text-income"></i> {{ ingresos|length }} ingreso(s)</span>
+    <span class="fw-bold text-income">Total: {{ "%.2f"|format(total) }} €</span>
   </div>
 
   <!-- VISTA ESCRITORIO: tabla -->
@@ -100,13 +100,13 @@
             </span>
           </td>
           <td><span style="font-size:.83rem;color:#6c757d">{{ i.fecha[:7] }}</span></td>
-          <td class="text-end fw-bold text-success">+{{ "%.2f"|format(i.importe) }} €</td>
+          <td class="text-end fw-bold text-income">+{{ "%.2f"|format(i.importe) }} €</td>
           <td class="text-end" style="white-space:nowrap">
-            <a href="{{ url_for('ingreso_editar', iid=i.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+            <a href="{{ url_for('paginas.ingreso_editar', iid=i.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
               <i class="bi bi-pencil"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger py-0 px-2 ms-1"
-              onclick="confirmarEliminar('{{ url_for('ingreso_eliminar', iid=i.id) }}', 'Eliminar: {{ i.descripcion }}?')">
+              onclick="confirmarEliminar('{{ url_for('paginas.ingreso_eliminar', iid=i.id) }}', 'Eliminar: {{ i.descripcion }}?')">
               <i class="bi bi-trash"></i>
             </button>
           </td>
@@ -137,13 +137,13 @@
           {% if i.notas %}<div style="font-size:.75rem;color:#adb5bd">{{ i.notas }}</div>{% endif %}
         </div>
         <div class="text-end flex-shrink-0">
-          <div class="fw-bold text-success" style="font-size:1rem">+{{ "%.2f"|format(i.importe) }} €</div>
+          <div class="fw-bold text-income" style="font-size:1rem">+{{ "%.2f"|format(i.importe) }} €</div>
           <div class="d-flex gap-1 mt-2 justify-content-end">
-            <a href="{{ url_for('ingreso_editar', iid=i.id) }}" class="btn btn-sm btn-outline-secondary p-1" style="width:32px;height:32px">
+            <a href="{{ url_for('paginas.ingreso_editar', iid=i.id) }}" class="btn btn-sm btn-outline-secondary p-1" style="width:32px;height:32px">
               <i class="bi bi-pencil" style="font-size:.85rem"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger p-1" style="width:32px;height:32px"
-              onclick="confirmarEliminar('{{ url_for('ingreso_eliminar', iid=i.id) }}', '{{ i.descripcion }}')">
+              onclick="confirmarEliminar('{{ url_for('paginas.ingreso_eliminar', iid=i.id) }}', '{{ i.descripcion }}')">
               <i class="bi bi-trash" style="font-size:.85rem"></i>
             </button>
           </div>
@@ -159,7 +159,8 @@
 </div>
 
 <!-- FAB nuevo ingreso (solo movil) -->
-<a href="{{ url_for('ingreso_nuevo') }}" class="fab fab-green d-md-none" aria-label="Nuevo ingreso">
+<a href="{{ url_for('paginas.ingreso_nuevo') }}" class="fab d-md-none" style="background:var(--nido-salvia);" aria-label="Nuevo ingreso">
   <i class="bi bi-plus-lg"></i>
 </a>
 {% endblock %}
+

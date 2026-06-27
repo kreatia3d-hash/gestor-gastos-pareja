@@ -3,7 +3,7 @@
 {% block page_title %}Aportar · {{ meta.nombre }}{% endblock %}
 
 {% block topbar_actions %}
-<a href="{{ url_for('metas') }}" class="btn btn-sm btn-outline-secondary">
+<a href="{{ url_for('paginas.metas') }}" class="btn btn-sm btn-outline-secondary">
   <i class="bi bi-arrow-left me-1"></i> Volver
 </a>
 {% endblock %}
@@ -12,7 +12,20 @@
 <div class="row g-3">
   <!-- Formulario -->
   <div class="col-12 col-md-5">
-    <!-- Estado meta -->
+    <!-- Hero meta -->
+    <div class="meta-hero mb-4">
+      <div class="meta-hero-icon">◉</div>
+      <div class="meta-hero-name">{{ meta.nombre }}</div>
+      <div class="meta-hero-progress">
+        {{ "%.2f"|format(meta.importe_actual) }}€ de {{ "%.2f"|format(meta.importe_objetivo) }}€
+        · {{ meta.progreso or 0 }}%
+      </div>
+      <div class="meta-hero-bar">
+        <div class="meta-hero-bar-fill" style="width: {{ meta.progreso or 0 }}%"></div>
+      </div>
+    </div>
+
+    <!-- Estado meta (formulario aportacion) -->
     <div class="card mb-3" style="border-left:4px solid {{ meta.color }}">
       <div class="card-body">
         <h6 class="fw-700 mb-1">{{ meta.nombre }}</h6>
@@ -72,8 +85,8 @@
           </div>
 
           <div class="d-grid">
-            <button type="submit" class="btn btn-primary" style="min-height:48px">
-              <i class="bi bi-piggy-bank me-1"></i> Registrar aportacion
+            <button type="submit" class="btn btn-nido-saving w-100" style="min-height:48px">
+              <i class="bi bi-piggy-bank me-1"></i> Aportar al nido
             </button>
           </div>
         </form>
