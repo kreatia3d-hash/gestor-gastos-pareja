@@ -180,8 +180,24 @@ def api_gasto_editar(gid):
 
 @bp.route('/api/gastos/<int:gid>', methods=['DELETE'])
 def api_gasto_eliminar(gid):
+    nid = _nido()
     conn = get_db()
-    conn.execute("DELETE FROM gastos WHERE id=?", (gid,))
+    g = conn.execute("SELECT * FROM gastos WHERE id=? AND nido_id=?", (gid, nid)).fetchone()
+    if not g:
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Gasto no encontrado'}), 404
+
+    if g['meta_id']:
+        conn.execute("DELETE FROM aportaciones_meta WHERE gasto_id=?", (gid,))
+        nueva_t = conn.execute(
+            "SELECT COALESCE(SUM(importe),0) as t FROM aportaciones_meta WHERE meta_id=?",
+            (g['meta_id'],)
+        ).fetchone()['t']
+        conn.execute("""UPDATE metas_ahorro SET importe_actual=?,
+            completada=CASE WHEN ? >= importe_objetivo THEN 1 ELSE 0 END WHERE id=?""",
+                     (nueva_t, nueva_t, g['meta_id']))
+
+    conn.execute("DELETE FROM gastos WHERE id=? AND nido_id=?", (gid, nid))
     conn.commit()
     conn.close()
     threading.Thread(target=_guardar_backup, daemon=True).start()

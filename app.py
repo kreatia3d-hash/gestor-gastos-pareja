@@ -115,7 +115,7 @@ def restaurar_desde_backup():
         with open(source, 'r', encoding='utf-8') as f:
             data = json.load(f)
         import sqlite3 as _sq
-        conn2 = _sq.connect(DB_PATH)
+        conn2 = _sq.connect(app.config['DB_PATH'])
         conn2.row_factory = _sq.Row
         conn2.execute("PRAGMA foreign_keys = OFF")
         for u in data.get('usuarios', []):
@@ -292,7 +292,7 @@ def _init_db_pg():
 def _init_db_sqlite():
     """Crea el schema en SQLite (desarrollo local)."""
     import sqlite3 as _sqlite3
-    conn = _sqlite3.connect(DB_PATH)
+    conn = _sqlite3.connect(app.config['DB_PATH'])
     conn.row_factory = _sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     c = conn.cursor()

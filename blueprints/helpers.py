@@ -102,17 +102,15 @@ def auto_generar_mes(mes_str, nido_id: int):
     """Genera gastos fijos e ingresos nómina para el mes indicado si no existen."""
     primera_fecha = mes_str + "-01"
     conn = get_db()
-    c = conn.cursor()
     changed = False
 
     # ── Gastos fijos ─────────────────────────────────────────────────────────
-    c.execute("""
+    grupos = conn.execute("""
         SELECT DISTINCT descripcion, COALESCE(categoria_id,-1) AS cat, COALESCE(usuario_id,-1) AS uid
         FROM gastos WHERE es_fijo=1 AND nido_id=?
-    """, (nido_id,))
-    grupos = c.fetchall()
+    """, (nido_id,)).fetchall()
     for g in grupos:
-        row = c.execute("""
+        row = conn.execute("""
             SELECT categoria_id, usuario_id, importe, notas FROM gastos
             WHERE es_fijo=1 AND nido_id=?
               AND descripcion=?
@@ -122,7 +120,7 @@ def auto_generar_mes(mes_str, nido_id: int):
         """, (nido_id, g['descripcion'], g['cat'], g['uid'])).fetchone()
         if not row:
             continue
-        existe = c.execute("""
+        existe = conn.execute("""
             SELECT 1 FROM gastos
             WHERE es_fijo=1 AND nido_id=? AND descripcion=?
               AND COALESCE(categoria_id,-1)=?
@@ -130,7 +128,7 @@ def auto_generar_mes(mes_str, nido_id: int):
               AND strftime('%Y-%m', fecha)=?
         """, (nido_id, g['descripcion'], g['cat'], g['uid'], mes_str)).fetchone()
         if not existe:
-            c.execute("""
+            conn.execute("""
                 INSERT INTO gastos (usuario_id, categoria_id, descripcion, importe, fecha, es_fijo, notas, nido_id)
                 VALUES (?, ?, ?, ?, ?, 1, ?, ?)
             """, (row['usuario_id'], row['categoria_id'], g['descripcion'],
@@ -138,25 +136,24 @@ def auto_generar_mes(mes_str, nido_id: int):
             changed = True
 
     # ── Ingresos nómina ───────────────────────────────────────────────────────
-    c.execute("""
+    grupos_ing = conn.execute("""
         SELECT DISTINCT descripcion, usuario_id FROM ingresos WHERE es_nomina=1 AND nido_id=?
-    """, (nido_id,))
-    grupos_ing = c.fetchall()
+    """, (nido_id,)).fetchall()
     for n in grupos_ing:
-        row = c.execute("""
+        row = conn.execute("""
             SELECT importe, notas FROM ingresos
             WHERE es_nomina=1 AND nido_id=? AND descripcion=? AND usuario_id=?
             ORDER BY fecha DESC LIMIT 1
         """, (nido_id, n['descripcion'], n['usuario_id'])).fetchone()
         if not row:
             continue
-        existe = c.execute("""
+        existe = conn.execute("""
             SELECT 1 FROM ingresos
             WHERE es_nomina=1 AND nido_id=? AND descripcion=? AND usuario_id=?
               AND strftime('%Y-%m', fecha)=?
         """, (nido_id, n['descripcion'], n['usuario_id'], mes_str)).fetchone()
         if not existe:
-            c.execute("""
+            conn.execute("""
                 INSERT INTO ingresos (usuario_id, descripcion, importe, fecha, es_nomina, notas, nido_id)
                 VALUES (?, ?, ?, ?, 1, ?, ?)
             """, (n['usuario_id'], n['descripcion'], row['importe'], primera_fecha, row['notas'], nido_id))
