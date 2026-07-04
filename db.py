@@ -155,9 +155,15 @@ class _SqliteCursor:
 
 class _SqliteConn:
     def __init__(self, path: str):
-        self._conn = sqlite3.connect(path)
+        # timeout alto + WAL: la app abre una conexión nueva por request y además
+        # lanza hilos en segundo plano (guardar_backup, push) que escriben en el
+        # mismo archivo. Con el modo por defecto (rollback journal, timeout 5s)
+        # esas escrituras concurrentes chocan y SQLite lanza "database is locked".
+        self._conn = sqlite3.connect(path, timeout=15)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute('PRAGMA foreign_keys = ON')
+        self._conn.execute('PRAGMA journal_mode = WAL')
+        self._conn.execute('PRAGMA busy_timeout = 15000')
 
     def execute(self, sql: str, params=()):
         return _SqliteCursor(self._conn.execute(sql, params))
