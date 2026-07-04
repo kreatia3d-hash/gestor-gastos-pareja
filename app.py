@@ -18,6 +18,19 @@ DATA_DIR   = os.environ.get('DATA_DIR', _default_data_dir).strip()
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
+# ── CORS (imprescindible para la versión web/PC) ──────────────────────────────
+# Sin esto, el navegador bloquea todas las llamadas a la API desde la web.
+# Restringido a orígenes concretos (no usar '*' junto con credenciales).
+from flask_cors import CORS
+_cors_origins = [
+    r"http://localhost:\d+",                # desarrollo: flutter run -d chrome
+    r"http://127\.0\.0\.1:\d+",             # desarrollo
+    "https://nido-bc124.web.app",           # producción (Firebase Hosting)
+    "https://nido-bc124.firebaseapp.com",   # producción (dominio alternativo)
+]
+CORS(app, resources={r"/api/*": {"origins": _cors_origins}},
+     supports_credentials=True)
+
 # ── Sentry (crash reporting) ──────────────────────────────────────────────────
 _SENTRY_DSN = os.environ.get('SENTRY_DSN')
 if _SENTRY_DSN:
